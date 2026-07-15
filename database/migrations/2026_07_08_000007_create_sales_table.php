@@ -1,31 +1,24 @@
 <?php
-
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('sales', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('user_id')->nullable()->constrained()->onDelete('set null');
-            $table->foreignId('staff_id')->nullable()->constrained('staffs')->onDelete('set null');
-            $table->decimal('total_amount', 10, 2)->default(0.00);
-            $table->string('payment_status')->default('pending'); // pending, paid, refunded
-            $table->timestamps();
+            $table->integer('sale_id')->autoIncrement();
+            $table->integer('user_id');
+            $table->integer('prescription_id')->nullable();
+            $table->integer('staff_id')->nullable();
+            $table->datetime('sale_date');
+            $table->decimal('total_price', 10, 2);
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('sales');
+        Schema::dropIfExists('sale');
     }
 };

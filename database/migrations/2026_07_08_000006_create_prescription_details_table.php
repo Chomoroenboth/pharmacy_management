@@ -1,31 +1,24 @@
 <?php
-
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('prescription_details', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('prescription_id')->constrained()->onDelete('cascade');
-            $table->foreignId('medicine_id')->constrained()->onDelete('cascade');
-            $table->string('dosage');
+            $table->integer('detail_id')->autoIncrement();
+            $table->integer('prescription_id');
+            $table->integer('medicine_id');
+            $table->string('dosage', 50)->nullable();
             $table->integer('quantity');
-            $table->timestamps();
+            $table->text('instructions')->nullable();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('prescription_details');
+        Schema::dropIfExists('prescription_detail');
     }
 };

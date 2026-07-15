@@ -24,21 +24,28 @@ class UserFactory extends Factory
     public function definition(): array
     {
         return [
-            'name' => fake()->name(),
+            'first_name' => fake()->firstName(),
+            'last_name' => fake()->lastName(),
             'email' => fake()->unique()->safeEmail(),
-            'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
+            'phone_number' => fake()->unique()->phoneNumber(),
+            'date_of_birth' => fake()->date(),
+            'address' => fake()->address(),
             'remember_token' => Str::random(10),
         ];
     }
 
     /**
      * Indicate that the model's email address should be unverified.
+     *
+     * Note: You can keep or delete this method. Since your migration
+     * does not have an 'email_verified_at' column, you can delete this
+     * method if you don't use email verification.
      */
     public function unverified(): static
     {
         return $this->state(fn (array $attributes) => [
-            'email_verified_at' => null,
+            // Left blank or removed because email_verified_at is not in your migration
         ]);
     }
 }
