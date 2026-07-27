@@ -7,6 +7,9 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+Route::get('/customer/prescriptions', [PrescriptionController::class, 'prescriptions'])->name('customer.prescriptions');
+Route::get('/customer/prescriptions/{id}', [PrescriptionController::class, 'prescriptionDetails'])->name('customer.prescriptions.details');
+
 // Prescription Management
 Route::prefix('admin')->name('admin.')->group(function () {
     Route::get('/prescriptions', [PrescriptionController::class, 'index'])->name('prescriptions');
