@@ -5,9 +5,11 @@ use App\Http\Controllers\PrescriptionController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\AdminController;
+use App\Http\Controllers\CustomerController;
 
 Route::get('/', function () {
-    return response()->json(['message' => 'Pharmacy Management API is running']);
+    return view('welcome');
 });
 
 // --- CUSTOMER ROUTES ---
@@ -19,6 +21,10 @@ Route::prefix('customer')->name('customer.')->group(function () {
     Route::post('/register', [AuthController::class, 'customerRegisterSubmit'])->name('register.submit');
     Route::get('/forgot-password', [AuthController::class, 'showCustomerForgotPassword'])->name('forgot-password');
     Route::post('/forgot-password', [AuthController::class, 'customerForgotPasswordSubmit'])->name('forgot-password.submit');
+
+    // Customer Management (dashboard + profile)
+    Route::get('/dashboard', [CustomerController::class, 'dashboard'])->name('dashboard');
+    Route::get('/profile', [CustomerController::class, 'profile'])->name('profile');
 
     // Prescriptions
     Route::get('/prescriptions', [PrescriptionController::class, 'prescriptions'])->name('prescriptions');
@@ -46,6 +52,14 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::get('/reset-password', [AuthController::class, 'showAdminResetPassword'])->name('reset-password');
     Route::post('/reset-password', [AuthController::class, 'adminResetPasswordSubmit'])->name('reset-password.submit');
 
+    // Admin Dashboard
+    Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
+
+    // Customer Management
+    Route::get('/customers', [AdminController::class, 'customers'])->name('customers');
+    Route::get('/customers/create', [AdminController::class, 'customerCreate'])->name('customers.create');
+    Route::get('/customers/{id}', [AdminController::class, 'customerShow'])->name('customers.show');
+
     // Inventory Management
     Route::get('/inventory', [InventoryController::class, 'index'])->name('inventory');
     Route::get('/inventory/create', [InventoryController::class, 'create'])->name('inventory.create');
@@ -67,4 +81,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::post('/prescriptions/{id}/medicines', [PrescriptionController::class, 'addMedicine'])->name('prescriptions.medicines.store');
     Route::put('/prescriptions/{id}/medicines/{medicineId}', [PrescriptionController::class, 'updateMedicine'])->name('prescriptions.medicines.update');
     Route::delete('/prescriptions/{id}/medicines/{medicineId}', [PrescriptionController::class, 'removeMedicine'])->name('prescriptions.medicines.remove');
+
+    // Not yet built
+    Route::view('/sales', 'coming-soon')->name('sales');
+    Route::view('/payments', 'coming-soon')->name('payments');
 });
