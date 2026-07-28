@@ -2,39 +2,75 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'PharmaCare MS')</title>
     <style>
-        :root { color-scheme: light; }
-        * { box-sizing: border-box; }
-        body { margin: 0; min-width: 320px; background: #f6f8fa; color: #202124; font-family: Inter, Arial, Helvetica, sans-serif; }
-        .customer-header { min-height: 64px; display: flex; align-items: center; gap: 28px; padding: 0 42px; background: #fff; border-bottom: 1px solid #e7ebea; box-shadow: 0 1px 4px rgba(21, 46, 35, .06); }
-        .brand { color: #007c5a; font-size: 24px; font-weight: 750; letter-spacing: -.55px; text-decoration: none; white-space: nowrap; }
-        .global-search { display: flex; align-items: center; gap: 10px; width: min(608px, 50vw); padding: 10px 13px; border: 1px solid #e0e4e4; border-radius: 8px; background: #f4f5f6; color: #69736f; font-size: 14px; }
-        .search-icon { width: 16px; height: 16px; border: 2px solid currentColor; border-radius: 50%; position: relative; flex: 0 0 auto; }
-        .search-icon::after { content: ''; width: 7px; height: 2px; position: absolute; right: -5px; bottom: -3px; background: currentColor; border-radius: 2px; transform: rotate(45deg); }
-        .account { display: flex; align-items: center; gap: 12px; margin-left: auto; font-size: 14px; color: #26332e; white-space: nowrap; }
-        .avatar { display: grid; width: 33px; height: 33px; place-items: center; border-radius: 50%; background: #10b981; color: #063c2d; font-size: 12px; font-weight: 700; }
-        .logout { color: #26332e; font-weight: 600; text-decoration: none; }
-        .customer-nav { display: flex; gap: 32px; min-height: 65px; padding: 0 42px; background: #fff; border-bottom: 1px solid #e7ebea; }
-        .customer-nav a { display: flex; align-items: center; padding: 0 16px; color: #4a5550; border-bottom: 3px solid transparent; font-size: 14px; font-weight: 600; text-decoration: none; }
-        .customer-nav a.active { color: #008562; border-bottom-color: #13a97b; }
-        .customer-main { padding: 24px 42px 56px; }
-        @media (max-width: 700px) { .customer-header { gap: 16px; padding: 0 20px; } .brand { font-size: 20px; } .global-search, .account > span, .logout { display: none; } .customer-nav { gap: 0; padding: 0 12px; justify-content: space-around; } .customer-nav a { padding: 0 10px; } .customer-main { padding: 18px 16px 40px; } }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: "Inter", Helvetica, sans-serif; background: #f9fafb; color: #191c1e; }
+
+        .top-nav {
+            display: flex; align-items: center; justify-content: space-between;
+            background: #fff; padding: 14px 40px;
+            box-shadow: 0px 1px 2px rgba(0,0,0,0.05);
+        }
+        .logo { color: #006c49; font-size: 24px; font-weight: 600; text-decoration: none; }
+        .search-box {
+            background: #f3f4f6; border-radius: 8px;
+            padding: 11px 20px; width: 500px; border: none;
+            color: rgba(60,74,66,0.7); font-size: 14px;
+        }
+        .nav-right { display: flex; align-items: center; gap: 16px; }
+        .nav-link { display: flex; align-items: center; gap: 6px; color: #4a5550; font-size: 14px; font-weight: 600; text-decoration: none; }
+        .nav-link.active { color: #008562; }
+        .avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: #10b981; color: #00422b;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; font-size: 12px;
+        }
+        .user-name { font-size: 14px; }
+        .logout-btn {
+            background: #fff; border: 1px solid #e1e2e4; border-radius: 4px;
+            padding: 8px 16px; font-size: 12px; color: #3c4a42; font-weight: bold;
+            cursor: pointer; text-decoration: none;
+        }
+
+        .page-container { padding: 40px; max-width: 1200px; margin: 0 auto; }
+        .page-title { font-size: 32px; margin-bottom: 8px; }
+        .page-subtitle { color: #6b7280; font-size: 14px; margin-bottom: 24px; }
+
+        .card {
+            background: #fff; border-radius: 8px;
+            box-shadow: 0px 2px 8px rgba(0,0,0,0.08);
+            padding: 32px; margin-bottom: 24px;
+        }
+        .card-title { font-size: 24px; margin-bottom: 20px; }
+        .flash-message {
+            background: #d1fae5; color: #047857; padding: 12px 20px;
+            border-radius: 6px; margin-bottom: 20px; font-size: 14px; font-weight: 500;
+        }
     </style>
     @yield('page-css')
 </head>
 <body>
-    <header class="customer-header">
-        <a class="brand" href="{{ route('customer.prescriptions') }}">PharmaCare MS</a>
-        <div class="global-search" aria-label="Search"><span class="search-icon" aria-hidden="true"></span>Search medicines, symptoms, brands...</div>
-        <div class="account"><span class="avatar">JD</span><span>John Doe</span><a class="logout" href="#">Log Out</a></div>
-    </header>
-    <nav class="customer-nav" aria-label="Customer navigation">
-        <a href="#">Dashboard</a>
-        <a href="{{ route('customer.prescriptions') }}" class="{{ request()->routeIs('customer.prescriptions*') ? 'active' : '' }}">Prescriptions</a>
-        <a href="#">Profile</a>
-    </nav>
-    <main class="customer-main">@yield('content')</main>
+    <div class="top-nav">
+        <a href="/" class="logo">PharmaCare MS</a>
+        <form action="{{ route('customer.search') }}" method="GET" style="flex:1; max-width:500px;">
+            <input type="text" name="q" class="search-box" style="width:100%;" placeholder="Search medicines, symptoms, brands...">
+        </form>
+        <div class="nav-right">
+            <a href="{{ route('customer.prescriptions') }}" class="nav-link {{ request()->routeIs('customer.prescriptions*') ? 'active' : '' }}">📋 Prescriptions</a>
+            <a href="{{ route('customer.cart') }}" class="nav-link">🛒 Cart</a>
+            <div class="avatar">{{ $userInitials ?? 'JD' }}</div>
+            <div class="user-name">{{ $userName ?? 'John Doe' }}</div>
+            <a href="#" class="logout-btn">Log Out</a>
+        </div>
+    </div>
+
+    <div class="page-container">
+        @if(session('message'))
+            <div class="flash-message">{{ session('message') }}</div>
+        @endif
+        @yield('content')
+    </div>
 </body>
 </html>
