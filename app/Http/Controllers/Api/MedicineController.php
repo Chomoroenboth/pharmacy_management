@@ -10,47 +10,58 @@ use Illuminate\Support\Facades\DB;
 class MedicineController extends Controller
 {
     // GET /inventory/medicines
-    public function index(Request $request)
-    {
-        $medicines = DB::table('medicines as m')
-            ->leftJoin('stocks as s', 'm.medicine_id', '=', 's.medicine_id')
-            ->selectRaw("
-                m.medicine_id,
-                m.medicine_name,
-                m.category,
-                m.brand,
-                m.price,
-                m.requires_prescription,
-                COALESCE(SUM(CASE
-                    WHEN s.txn_type = 'in' THEN s.quantity
-                    WHEN s.txn_type = 'out' THEN -s.quantity
-                    WHEN s.txn_type = 'adjustment' THEN s.quantity
-                    ELSE 0
-                END), 0) AS current_stock,
-                MAX(s.reorder_level) AS reorder_level
-            ")
-            ->groupBy(
-                'm.medicine_id',
-                'm.medicine_name',
-                'm.category',
-                'm.brand',
-                'm.price',
-                'm.requires_prescription'
-            );
+    // GET /inventory/medicines?search=&category=&page=&per_page=
+public function index(Request $request)
+{
+    $query = DB::table('medicines as m')
+        ->leftJoin('stocks as s', 'm.medicine_id', '=', 's.medicine_id')
+        ->selectRaw("
+            m.medicine_id,
+            CONCAT('MED-', LPAD(m.medicine_id, 3, '0')) as display_id,
+            m.medicine_name,
+            m.category,
+            m.brand,
+            m.price,
+            m.requires_prescription,
+            COALESCE(SUM(CASE
+                WHEN s.txn_type = 'in' THEN s.quantity
+                WHEN s.txn_type = 'out' THEN -s.quantity
+                WHEN s.txn_type = 'adjustment' THEN s.quantity
+                ELSE 0
+            END), 0) AS current_stock,
+            MAX(s.reorder_level) AS reorder_level
+        ")
+        ->groupBy(
+            'm.medicine_id',
+            'm.medicine_name',
+            'm.category',
+            'm.brand',
+            'm.price',
+            'm.requires_prescription'
+        );
 
-        if ($request->filled('category')) {
-            $medicines->where('m.category', $request->query('category'));
-        }
-
-        if ($request->filled('search')) {
-            $medicines->where('m.medicine_name', 'LIKE', '%' . $request->query('search') . '%');
-        }
-
-        return response()->json([
-            'status' => 'success',
-            'data'   => $medicines->get()
-        ], 200);
+    if ($request->filled('category')) {
+        $query->where('m.category', $request->query('category'));
     }
+
+    if ($request->filled('search')) {
+        $query->where('m.medicine_name', 'LIKE', '%' . $request->query('search') . '%');
+    }
+
+    $perPage = $request->input('per_page', 5); // matches mockup's "5 of 124" default page size
+    $medicines = $query->paginate($perPage);
+
+    return response()->json([
+        'status' => 'success',
+        'data'   => $medicines->items(),
+        'meta'   => [
+            'current_page' => $medicines->currentPage(),
+            'last_page'    => $medicines->lastPage(),
+            'per_page'     => $medicines->perPage(),
+            'total'        => $medicines->total(),
+        ]
+    ], 200);
+}
 
     // POST /inventory/medicines
     public function store(Request $request)
@@ -150,4 +161,42 @@ class MedicineController extends Controller
 
         return response()->json(['status' => 'success', 'message' => 'Price updated successfully']);
     }
+
+    // PUT /inventory/medicines/{id}
+public function update(Request $request, $id)
+{
+    $medicine = DB::table('medicines')->where('medicine_id', $id)->first();
+
+    if (!$medicine) {
+        return response()->json(['status' => 'error', 'message' => 'Medicine not found'], 404);
+    }
+
+    $request->validate([
+        'medicine_name'          => 'sometimes|string|max:100',
+        'category'               => 'nullable|string|max:50',
+        'brand'                  => 'nullable|string|max:50',
+        'price'                  => 'sometimes|numeric|min:0',
+        'requires_prescription'  => 'sometimes|boolean',
+    ]);
+
+    DB::transaction(function () use ($request, $id, $medicine) {
+        $updateData = $request->only(['medicine_name', 'category', 'brand', 'requires_prescription']);
+
+        // If price is being changed, log it to price history (keeps the audit trail consistent
+        // with the dedicated Update Price flow, rather than silently overwriting it here)
+        if ($request->filled('price') && $request->price != $medicine->price) {
+            DB::table('price_historys')->insert([
+                'medicine_id'    => $id,
+                'old_price'      => $medicine->price,
+                'new_price'      => $request->price,
+                'effective_date' => now()->toDateString()
+            ]);
+            $updateData['price'] = $request->price;
+        }
+
+        DB::table('medicines')->where('medicine_id', $id)->update($updateData);
+    });
+
+    return response()->json(['status' => 'success', 'message' => 'Medicine updated successfully']);
+}
 }

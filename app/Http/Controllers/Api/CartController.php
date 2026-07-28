@@ -9,35 +9,88 @@ use Illuminate\Support\Facades\DB;
 
 class CartController extends Controller
 {
-    public function store(Request $request)
+    // GET /cart
+    public function index(Request $request)
     {
-        // Get the authenticated user
         $user = $request->user();
 
-        // Safety check if user is not logged in
         if (!$user) {
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
-        // Get user_id (supports both 'user_id' and default 'id')
         $userId = $user->user_id ?? $user->id;
 
-        DB::table('carts')->insert([
+        $items = DB::table('carts as c')
+            ->join('medicines as m', 'c.medicine_id', '=', 'm.medicine_id')
+            ->where('c.user_id', $userId)
+            ->select(
+                'c.cart_id',
+                'c.medicine_id',
+                'm.medicine_name',
+                'm.price',
+                'c.quantity',
+                DB::raw('m.price * c.quantity as subtotal'),
+                'c.added_at'
+            )
+            ->get();
+
+        return response()->json([
+            'status' => 'success',
+            'data'   => $items
+        ]);
+    }
+
+    // POST /cart
+    public function store(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $userId = $user->user_id ?? $user->id;
+
+        $request->validate([
+            'medicine_id' => 'required|integer|exists:medicines,medicine_id',
+            'quantity'    => 'nullable|integer|min:1',
+        ]);
+
+        $quantity = $request->quantity ?? 1;
+
+        // If this medicine is already in the cart, bump the quantity instead of duplicating the row
+        $existing = Cart::where('user_id', $userId)
+            ->where('medicine_id', $request->medicine_id)
+            ->first();
+
+        if ($existing) {
+            $existing->quantity += $quantity;
+            $existing->save();
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Cart quantity updated',
+                'data'    => $existing
+            ], 200);
+        }
+
+        $cartId = DB::table('carts')->insertGetId([
             'user_id'     => $userId,
             'medicine_id' => $request->medicine_id,
-            'quantity'    => $request->quantity ?? 1,
+            'quantity'    => $quantity,
             'added_at'    => now()
         ]);
 
         return response()->json([
             'status'  => 'success',
-            'message' => 'Item added to cart successfully'
+            'message' => 'Item added to cart successfully',
+            'data'    => ['cart_id' => $cartId]
         ], 201);
     }
 
+    // PUT /cart/{id}
     public function update(Request $request, $id)
     {
-        // 0. Get the authenticated user
         $user = $request->user();
 
         if (!$user) {
@@ -46,17 +99,14 @@ class CartController extends Controller
 
         $userId = $user->user_id ?? $user->id;
 
-        // 1. Validate the incoming data (must have a quantity of at least 1)
         $request->validate([
             'quantity' => 'required|integer|min:1'
         ]);
 
-        // 2. Find the specific cart item using the REAL primary key: cart_id
         $cartItem = Cart::where('cart_id', $id)
                         ->where('user_id', $userId)
                         ->first();
 
-        // 3. If the item isn't in their cart, return an error
         if (!$cartItem) {
             return response()->json([
                 'status'  => 'error',
@@ -64,15 +114,43 @@ class CartController extends Controller
             ], 404);
         }
 
-        // 4. Update the quantity and save to the database
         $cartItem->quantity = $request->quantity;
         $cartItem->save();
 
-        // 5. Return a success message
         return response()->json([
             'status'  => 'success',
             'message' => 'Cart quantity updated successfully.',
             'data'    => $cartItem
         ], 200);
+    }
+
+    // DELETE /cart/{id}
+    public function destroy(Request $request, $id)
+    {
+        $user = $request->user();
+
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $userId = $user->user_id ?? $user->id;
+
+        $cartItem = Cart::where('cart_id', $id)
+                        ->where('user_id', $userId)
+                        ->first();
+
+        if (!$cartItem) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Cart item not found.'
+            ], 404);
+        }
+
+        $cartItem->delete();
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => 'Item removed from cart.'
+        ]);
     }
 }

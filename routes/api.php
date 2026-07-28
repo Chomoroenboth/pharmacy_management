@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\AllergyController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Auth\StaffAuthController;
 use App\Http\Controllers\Auth\UserAuthController;
+use App\Http\Controllers\Api\DashboardController;
 
 // Feature 1: Authentication API endpoints (Public)
 Route::post('/auth/register', [UserAuthController::class, 'register']);
@@ -59,6 +60,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/medicines/{id}', [MedicineController::class, 'destroy']);
 
         Route::get('/medicines/{id}', [MedicineController::class, 'show']);
+        Route::put('/medicines/{id}', [MedicineController::class, 'update']);
     });
 
     // Feature 4: Prescription Management
@@ -82,6 +84,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/sales/{sale}/payment', [PaymentController::class, 'process']);
         Route::get('/sales', [SaleController::class, 'index']);
         Route::get('/sales/{id}', [SaleController::class, 'show']);
+        Route::get('/payments', [PaymentController::class, 'index']);
     });
 
     // Feature 6: Cart Routes
@@ -91,5 +94,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}', [CartController::class, 'destroy']);
         Route::put('/{id}', [CartController::class, 'update']);
     });
+    Route::get('/dashboard', [DashboardController::class, 'index']);
 
 });
