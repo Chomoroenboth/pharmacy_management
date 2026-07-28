@@ -51,7 +51,7 @@
             <nav class="sidebar-nav">
                 <a href="#">&#9635; Dashboard</a>
                 <a href="#">&#128101; Customers</a>
-                <a href="#">&#128203; Prescriptions</a>
+                <a href="{{ route('admin.prescriptions') }}" class="{{ request()->routeIs('admin.prescriptions*') ? 'active' : '' }}">&#128203; Prescriptions</a>
                 <a href="{{ route('admin.inventory') }}" class="{{ request()->routeIs('admin.inventory*') ? 'active' : '' }}">&#128230; Inventory</a>
                 <a href="#">&#128181; Sales</a>
                 <a href="#">&#128179; Payments</a>

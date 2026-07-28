@@ -12,13 +12,15 @@
             background: #fff; padding: 14px 40px;
             box-shadow: 0px 1px 2px rgba(0,0,0,0.05);
         }
-        .logo { color: #006c49; font-size: 24px; font-weight: 600; }
+        .logo { color: #006c49; font-size: 24px; font-weight: 600; text-decoration: none; }
         .search-box {
             background: #f3f4f6; border-radius: 8px;
             padding: 11px 20px; width: 500px; border: none;
             color: rgba(60,74,66,0.7); font-size: 14px;
         }
-        .nav-right { display: flex; align-items: center; gap: 12px; }
+        .nav-right { display: flex; align-items: center; gap: 16px; }
+        .nav-link { display: flex; align-items: center; gap: 6px; color: #4a5550; font-size: 14px; font-weight: 600; text-decoration: none; }
+        .nav-link.active { color: #008562; }
         .avatar {
             width: 32px; height: 32px; border-radius: 50%;
             background: #10b981; color: #00422b;
@@ -50,14 +52,14 @@
     @yield('page-css')
 </head>
 <body>
-
     <div class="top-nav">
-        <div class="logo">PharmaCare MS</div>
+        <a href="/" class="logo">PharmaCare MS</a>
         <form action="{{ route('customer.search') }}" method="GET" style="flex:1; max-width:500px;">
             <input type="text" name="q" class="search-box" style="width:100%;" placeholder="Search medicines, symptoms, brands...">
         </form>
         <div class="nav-right">
-            <a href="{{ route('customer.cart') }}" style="text-decoration:none; color:#191c1e; font-size:14px;">🛒 Cart</a>
+            <a href="{{ route('customer.prescriptions') }}" class="nav-link {{ request()->routeIs('customer.prescriptions*') ? 'active' : '' }}">📋 Prescriptions</a>
+            <a href="{{ route('customer.cart') }}" class="nav-link">🛒 Cart</a>
             <div class="avatar">{{ $userInitials ?? 'JD' }}</div>
             <div class="user-name">{{ $userName ?? 'John Doe' }}</div>
             <a href="#" class="logout-btn">Log Out</a>
@@ -70,6 +72,5 @@
         @endif
         @yield('content')
     </div>
-
 </body>
 </html>
