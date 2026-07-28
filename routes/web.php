@@ -7,6 +7,7 @@ use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\SalesController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -82,7 +83,24 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::put('/prescriptions/{id}/medicines/{medicineId}', [PrescriptionController::class, 'updateMedicine'])->name('prescriptions.medicines.update');
     Route::delete('/prescriptions/{id}/medicines/{medicineId}', [PrescriptionController::class, 'removeMedicine'])->name('prescriptions.medicines.remove');
 
-    // Not yet built
-    Route::view('/sales', 'coming-soon')->name('sales');
-    Route::view('/payments', 'coming-soon')->name('payments');
+    // Prescription Management
+Route::get('/prescriptions', [PrescriptionController::class, 'index'])->name('prescriptions');
+Route::get('/prescriptions/create', [PrescriptionController::class, 'create'])->name('prescriptions.create');
+Route::post('/prescriptions', [PrescriptionController::class, 'store'])->name('prescriptions.store');
+Route::get('/prescriptions/{id}', [PrescriptionController::class, 'show'])->name('prescriptions.show');
+Route::put('/prescriptions/{id}', [PrescriptionController::class, 'update'])->name('prescriptions.update');
+Route::delete('/prescriptions/{id}', [PrescriptionController::class, 'destroy'])->name('prescriptions.destroy');
+
+
+// Sales Management
+Route::get('/sales', [SalesController::class, 'index'])->name('sales.index');
+Route::get('/sales/{id}', [SalesController::class, 'show'])->name('sales.show');
+
+// Payment Management
+Route::get('/payments', [SalesController::class, 'payments'])->name('payments.index');
+});
+Route::prefix('admin')->name('admin.')->group(function () {
+    Route::get('/sales', [SalesController::class, 'index'])->name('sales.index');
+    Route::get('/sales/{id}', [SalesController::class, 'show'])->name('sales.show');
+    Route::get('/payments', [SalesController::class, 'payments'])->name('payments.index');
 });

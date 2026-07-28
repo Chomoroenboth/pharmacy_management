@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>@yield('title', 'PharmaCare MS')</title>
 
     <style>
@@ -92,7 +94,7 @@
         .card {
             background: #fff;
             border-radius: 8px;
-            box-shadow: 0px 2px 8px rgba(0,0,0,0.08);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
             padding: 32px;
             margin-bottom: 24px;
         }
@@ -111,7 +113,7 @@
 
 <div class="layout">
 
-    <div class="sidebar">
+    <aside class="sidebar">
 
         <div class="sidebar-logo">
             <div class="name">PharmaCare MS</div>
@@ -119,23 +121,52 @@
         </div>
 
         <nav class="sidebar-nav">
-            <a href="{{ route('admin.dashboard') }}" class="{{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">&#9635; Dashboard</a>
-            <a href="{{ route('admin.customers') }}" class="{{ request()->routeIs('admin.customers*') ? 'active' : '' }}">&#128101; Customers</a>
-            <a href="{{ route('admin.prescriptions') }}" class="{{ request()->routeIs('admin.prescriptions*') ? 'active' : '' }}">&#128203; Prescriptions</a>
-            <a href="{{ route('admin.inventory') }}" class="{{ request()->routeIs('admin.inventory*') ? 'active' : '' }}">&#128230; Inventory</a>
-            <a href="{{ route('admin.sales') }}" class="{{ request()->routeIs('admin.sales*') ? 'active' : '' }}">&#128181; Sales</a>
-            <a href="{{ route('admin.payments') }}" class="{{ request()->routeIs('admin.payments*') ? 'active' : '' }}">&#128179; Payments</a>
+
+            <a href="{{ route('admin.dashboard') }}"
+               class="{{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
+                &#9635; Dashboard
+            </a>
+
+            <a href="{{ route('admin.customers') }}"
+               class="{{ request()->routeIs('admin.customers*') ? 'active' : '' }}">
+                &#128101; Customers
+            </a>
+
+            <a href="{{ route('admin.prescriptions') }}"
+               class="{{ request()->routeIs('admin.prescriptions*') ? 'active' : '' }}">
+                &#128203; Prescriptions
+            </a>
+
+            <a href="{{ route('admin.inventory') }}"
+               class="{{ request()->routeIs('admin.inventory*') ? 'active' : '' }}">
+                &#128230; Inventory
+            </a>
+
+            <a href="{{ route('admin.sales.index') }}"
+               class="{{ request()->routeIs('admin.sales.*') ? 'active' : '' }}">
+                &#128181; Sales
+            </a>
+
+            <a href="{{ route('admin.payments.index') }}"
+               class="{{ request()->routeIs('admin.payments.*') ? 'active' : '' }}">
+                &#128179; Payments
+            </a>
+
         </nav>
 
         <div class="sidebar-footer">
-            <a href="#">&#8618; Log Out</a>
+            <a href="#">
+                &#8618; Log Out
+            </a>
         </div>
 
-    </div>
+    </aside>
 
-    <div class="main">
+
+    <main class="main">
         @yield('content')
-    </div>
+    </main>
+
 
 </div>
 
