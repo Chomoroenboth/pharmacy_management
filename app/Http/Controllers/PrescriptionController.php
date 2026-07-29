@@ -72,128 +72,13 @@ class PrescriptionController extends Controller
      */
     public function prescriptions()
     {
-        $prescriptions = collect([
-            (object) [
-                'prescription_id' => 1001,
-                'medicine_name' => 'Amoxicillin 500mg',
-                'doctor_first_name' => 'Sarah',
-                'doctor_last_name' => 'Jenkins',
-                'issue_date' => '2025-06-15',
-                'expiry_date' => '2025-12-15',
-                'status' => 'active',
-            ],
-            (object) [
-                'prescription_id' => 1002,
-                'medicine_name' => 'Lisinopril 10mg',
-                'doctor_first_name' => 'Robert',
-                'doctor_last_name' => 'Chen',
-                'issue_date' => '2024-01-05',
-                'expiry_date' => '2024-07-05',
-                'status' => 'expired',
-            ],
-            (object) [
-                'prescription_id' => 1003,
-                'medicine_name' => 'Atorvastatin 20mg',
-                'doctor_first_name' => 'Emily',
-                'doctor_last_name' => 'Stone',
-                'issue_date' => '2025-05-20',
-                'expiry_date' => '2026-05-20',
-                'status' => 'filled',
-            ],
-        ]);
-
-        return view('customer.prescriptions', compact('prescriptions'));
+        return view('customer.prescriptions');
     }
 
-    /**
-     * Display a prescription with its patient and medicine detail records.
-     *
-     * The three variables mirror the separate prescription, user, and
-     * prescription-detail/medicine resources returned by the future API.
-     */
     public function prescriptionDetails($id)
     {
-        $records = [
-            1001 => [
-                'prescription' => (object) [
-                    'prescription_id' => 1001,
-                    'issue_date' => '2025-06-15',
-                    'expiry_date' => '2025-12-15',
-                    'status' => 'active',
-                    'notes' => 'Take the full course as directed, even if symptoms improve.',
-                    'doctor_first_name' => 'Sarah',
-                    'doctor_last_name' => 'Jenkins',
-                    'doctor_license' => 'LIC-2023-0456',
-                    'doctor_clinic' => 'St. Jude Medical Center',
-                ],
-                'patient' => (object) [
-                    'first_name' => 'Michael',
-                    'last_name' => 'Thompson',
-                    'email' => 'michael.thompson@example.com',
-                    'phone_number' => '+1 (555) 482-0198',
-                    'date_of_birth' => '1978-12-05',
-                ],
-                'medicines' => collect([
-                    (object) ['medicine_name' => 'Amoxicillin 500mg', 'dosage' => '500 mg', 'quantity' => 21, 'instructions' => 'Take one capsule three times daily with food.'],
-                    (object) ['medicine_name' => 'Ibuprofen 200mg', 'dosage' => '200 mg', 'quantity' => 20, 'instructions' => 'Take one tablet as needed for pain, after meals.'],
-                ]),
-            ],
-            1002 => [
-                'prescription' => (object) [
-                    'prescription_id' => 1002,
-                    'issue_date' => '2024-01-05',
-                    'expiry_date' => '2024-07-05',
-                    'status' => 'expired',
-                    'notes' => 'A new authorization is required before this medicine can be dispensed.',
-                    'doctor_first_name' => 'Robert',
-                    'doctor_last_name' => 'Chen',
-                    'doctor_license' => 'LIC-2022-1187',
-                    'doctor_clinic' => 'Hill House Clinic',
-                ],
-                'patient' => (object) [
-                    'first_name' => 'Michael',
-                    'last_name' => 'Thompson',
-                    'email' => 'michael.thompson@example.com',
-                    'phone_number' => '+1 (555) 482-0198',
-                    'date_of_birth' => '1978-12-05',
-                ],
-                'medicines' => collect([
-                    (object) ['medicine_name' => 'Lisinopril 10mg', 'dosage' => '10 mg', 'quantity' => 90, 'instructions' => 'Take one tablet by mouth daily in the morning.'],
-                ]),
-            ],
-            1003 => [
-                'prescription' => (object) [
-                    'prescription_id' => 1003,
-                    'issue_date' => '2025-05-20',
-                    'expiry_date' => '2026-05-20',
-                    'status' => 'filled',
-                    'notes' => 'Take this medicine at the same time each evening.',
-                    'doctor_first_name' => 'Emily',
-                    'doctor_last_name' => 'Stone',
-                    'doctor_license' => 'LIC-2024-0812',
-                    'doctor_clinic' => 'Phnom Penh General Hospital',
-                ],
-                'patient' => (object) [
-                    'first_name' => 'Michael',
-                    'last_name' => 'Thompson',
-                    'email' => 'michael.thompson@example.com',
-                    'phone_number' => '+1 (555) 482-0198',
-                    'date_of_birth' => '1978-12-05',
-                ],
-                'medicines' => collect([
-                    (object) ['medicine_name' => 'Atorvastatin 20mg', 'dosage' => '20 mg', 'quantity' => 30, 'instructions' => 'Take one tablet daily at bedtime.'],
-                ]),
-            ],
-        ];
-
-        $record = $records[$id] ?? $records[1001];
-        $prescription = $record['prescription'];
-        $patient = $record['patient'];
-        $medicines = $record['medicines'];
-
-        return view('customer.prescription-details', compact('prescription', 'patient', 'medicines'));
+        return view('customer.prescription-details', ['prescriptionId' => $id]);
     }
-
     public function create()
     {
         return view('admin.prescriptions.create');

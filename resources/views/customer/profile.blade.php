@@ -10,6 +10,7 @@
         background: #fff; border: 1px solid #e1e2e4; border-radius: 6px;
         padding: 8px 16px; font-size: 13px; color: #006c49; font-weight: 600;
         text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+        cursor: pointer;
     }
 
     .top-row { display: flex; gap: 24px; margin-bottom: 24px; align-items: stretch; }
@@ -66,7 +67,6 @@
     .dot-active { background: #10b981; }
     .dot-filled { background: #6c7a71; }
 
-    /* Edit Profile modal */
     .modal-overlay {
         display: none; position: fixed; inset: 0;
         background: rgba(0,0,0,0.5); z-index: 100;
@@ -122,7 +122,126 @@
         background: #10b981; border: none; border-radius: 6px;
         padding: 10px 24px; font-size: 14px; font-weight: 600; color: #fff; cursor: pointer;
     }
+    .loading-text { color: #6b7280; padding: 16px 0; }
 </style>
+
+@vite(['resources/js/app.js'])
+<script>
+let currentUser = null;
+
+document.addEventListener('DOMContentLoaded', function () {
+    loadProfile();
+    loadAllergies();
+});
+
+async function loadProfile() {
+    try {
+        const response = await window.axios.get('/api/profile');
+        currentUser = response.data.data;
+
+        const initials = (currentUser.first_name?.[0] ?? '') + (currentUser.last_name?.[0] ?? '');
+        document.getElementById('avatarInitials').textContent = initials.toUpperCase();
+        document.getElementById('avatarName').textContent = `${currentUser.first_name} ${currentUser.last_name ?? ''}`.trim();
+        document.getElementById('idBadge').textContent = `# CUS-${currentUser.user_id}`;
+        document.getElementById('displayPhone').textContent = currentUser.phone_number ?? '—';
+        document.getElementById('displayEmail').textContent = currentUser.email;
+        document.getElementById('displayDob').textContent = currentUser.date_of_birth ?? '—';
+
+    } catch (err) {
+        if (err.response?.status === 401) {
+            window.location.href = "{{ route('customer.login') }}";
+        }
+        console.error('Failed to load profile:', err);
+    }
+}
+
+async function loadAllergies() {
+    const badgesEl = document.getElementById('allergyBadges');
+    const editListEl = document.getElementById('allergyEditList');
+
+    try {
+        const response = await window.axios.get('/api/profile/allergies');
+        const allergies = response.data.data;
+
+        if (!allergies.length) {
+            badgesEl.innerHTML = '<span class="rx-sub">No known allergies</span>';
+            editListEl.innerHTML = '';
+            return;
+        }
+
+        badgesEl.innerHTML = allergies.map(a =>
+            `<span class="badge-allergy-warn">${a.allergy_name}</span>`
+        ).join('');
+
+        editListEl.innerHTML = allergies.map(a => `
+            <span class="badge-removable badge-allergy-warn" data-allergy-id="${a.allergy_id}">
+                ${a.allergy_name}
+                <button type="button" onclick="removeAllergy(${a.allergy_id}, this)">&times;</button>
+            </span>
+        `).join('');
+
+    } catch (err) {
+        console.error('Failed to load allergies:', err);
+    }
+}
+
+async function removeAllergy(allergyId, buttonEl) {
+    try {
+        await window.axios.delete('/api/profile/allergies/' + allergyId);
+        buttonEl.closest('.badge-removable').remove();
+        loadAllergies(); // refresh the display badges too
+    } catch (err) {
+        console.error('Failed to remove allergy:', err);
+    }
+}
+
+async function addAllergy() {
+    const input = document.getElementById('newAllergyInput');
+    const name = input.value.trim();
+    if (!name) return;
+
+    try {
+        await window.axios.post('/api/profile/allergies', { allergy_name: name });
+        input.value = '';
+        loadAllergies();
+    } catch (err) {
+        console.error('Failed to add allergy:', err);
+    }
+}
+
+function openEditModal(e) {
+    e.preventDefault();
+    document.getElementById('edit_first_name').value = currentUser?.first_name ?? '';
+    document.getElementById('edit_last_name').value = currentUser?.last_name ?? '';
+    document.getElementById('edit_phone').value = currentUser?.phone_number ?? '';
+    document.getElementById('edit_email').value = currentUser?.email ?? '';
+    document.getElementById('editProfileModal').classList.add('open');
+}
+
+function closeEditModal() {
+    document.getElementById('editProfileModal').classList.remove('open');
+}
+
+async function saveProfile(e) {
+    e.preventDefault();
+
+    try {
+        await window.axios.put('/api/profile', {
+            first_name: document.getElementById('edit_first_name').value,
+            last_name: document.getElementById('edit_last_name').value,
+            phone_number: document.getElementById('edit_phone').value,
+        });
+
+        closeEditModal();
+        loadProfile();
+    } catch (err) {
+        console.error('Failed to save profile:', err);
+        alert('Failed to save changes. Please try again.');
+    }
+
+    return false;
+}
+</script>
 @endsection
 
 @section('content')
@@ -133,58 +252,52 @@
     </div>
 
     <div class="top-row">
-        {{-- Personal Information --}}
         <div class="card">
             <div class="card-header-row">
                 <div class="card-title" style="margin-bottom:0;">Personal Information</div>
             </div>
 
             <div class="avatar-row">
-                <div class="avatar-lg">{{ $user->initials }}</div>
+                <div class="avatar-lg" id="avatarInitials">--</div>
                 <div>
-                    <div class="avatar-name">{{ $user->first_name }} {{ $user->last_name }}</div>
-                    <div class="id-badge"># CUS-{{ $user->display_id }}</div>
+                    <div class="avatar-name" id="avatarName">Loading...</div>
+                    <div class="id-badge" id="idBadge">—</div>
                 </div>
             </div>
 
             <div class="field-row">
                 <div class="field-label">PHONE NUMBER</div>
-                <div class="field-value">{{ $user->phone_number }}</div>
+                <div class="field-value" id="displayPhone">Loading...</div>
             </div>
             <div class="field-row">
                 <div class="field-label">EMAIL ADDRESS</div>
-                <div class="field-value">{{ $user->email }}</div>
+                <div class="field-value" id="displayEmail">Loading...</div>
             </div>
             <div class="field-row">
                 <div class="field-label">DATE OF BIRTH</div>
-                <div class="field-value">{{ $user->date_of_birth }}</div>
+                <div class="field-value" id="displayDob">Loading...</div>
             </div>
         </div>
 
-        {{-- Medical (allergies only — physician card removed, no matching schema field) --}}
         <div class="card">
             <div class="card-header-row">
                 <div class="card-title" style="margin-bottom:0;">Medical</div>
             </div>
 
             <div class="allergy-section-label">KNOWN ALLERGIES / ALERTS</div>
-            <div class="allergy-badges">
-                @forelse($allergies as $allergy)
-                    <span class="{{ $allergy->severity === 'warning' ? 'badge-allergy-warn' : 'badge-allergy-info' }}">
-                        {{ $allergy->allergy_name }}
-                    </span>
-                @empty
-                    <span class="rx-sub">No known allergies</span>
-                @endforelse
+            <div class="allergy-badges" id="allergyBadges">
+                <span class="rx-sub">Loading...</span>
             </div>
         </div>
     </div>
 
-    {{-- Active Prescriptions --}}
+    {{-- TODO: Prescriptions data isn't wired to a real API endpoint yet — this table is still
+         placeholder data from the controller. Needs its own connection pass once the
+         prescriptions API response shape is confirmed. --}}
     <div class="card" style="padding: 0; overflow: hidden;">
         <div style="padding: 24px 24px 16px;">
             <span class="card-title" style="margin-bottom:0;">Active Prescriptions</span>
-            <span class="rx-count">{{ $prescriptions->count() }}</span>
+            <span class="rx-count">{{ isset($prescriptions) ? $prescriptions->count() : 0 }}</span>
         </div>
         <table class="rx-table">
             <thead>
@@ -196,7 +309,7 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach($prescriptions as $rx)
+                @foreach($prescriptions ?? [] as $rx)
                 <tr>
                     <td>
                         <div class="rx-name">{{ $rx->medicine_name }}</div>
@@ -219,7 +332,6 @@
         </table>
     </div>
 
-    {{-- Edit Profile modal --}}
     <div class="modal-overlay" id="editProfileModal">
         <div class="modal-box">
             <div class="modal-header">
@@ -228,47 +340,33 @@
             </div>
 
             <form onsubmit="return saveProfile(event)">
-                <div class="modal-section-title">&#128100; Personal Information</div>
+                <div class="modal-section-title"> Personal Information</div>
 
                 <div class="form-row">
                     <div class="form-field">
                         <label>FIRST NAME</label>
-                        <input type="text" id="edit_first_name" value="{{ $user->first_name }}">
+                        <input type="text" id="edit_first_name">
                     </div>
                     <div class="form-field">
                         <label>LAST NAME</label>
-                        <input type="text" id="edit_last_name" value="{{ $user->last_name }}">
+                        <input type="text" id="edit_last_name">
                     </div>
                 </div>
 
                 <div class="form-row">
                     <div class="form-field">
                         <label>PHONE NUMBER</label>
-                        <input type="text" id="edit_phone" value="{{ $user->phone_number }}">
+                        <input type="text" id="edit_phone">
                     </div>
                     <div class="form-field">
                         <label>EMAIL ADDRESS</label>
-                        <input type="email" id="edit_email" value="{{ $user->email }}">
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-field">
-                        <label>DATE OF BIRTH</label>
-                        <input type="text" id="edit_dob" value="{{ $user->dob_edit }}">
+                        <input type="email" id="edit_email" disabled title="Email cannot be changed here">
                     </div>
                 </div>
 
                 <div class="modal-section-title" style="margin-top: 8px;">&#9888; Allergies</div>
 
-                <div class="allergy-edit-row" id="allergyEditList">
-                    @foreach($allergies as $allergy)
-                        <span class="badge-removable {{ $allergy->severity === 'warning' ? 'badge-allergy-warn' : 'badge-allergy-info' }}">
-                            {{ $allergy->allergy_name }}
-                            <button type="button" onclick="this.parentElement.remove()">&times;</button>
-                        </span>
-                    @endforeach
-                </div>
+                <div class="allergy-edit-row" id="allergyEditList"></div>
 
                 <div class="add-allergy-row">
                     <input type="text" id="newAllergyInput" placeholder="Add new allergy...">
@@ -282,36 +380,5 @@
             </form>
         </div>
     </div>
-
-    <script>
-        function openEditModal(e) {
-            e.preventDefault();
-            document.getElementById('editProfileModal').classList.add('open');
-        }
-        function closeEditModal() {
-            document.getElementById('editProfileModal').classList.remove('open');
-        }
-        function addAllergy() {
-            const input = document.getElementById('newAllergyInput');
-            const name = input.value.trim();
-            if (!name) return;
-
-            const badge = document.createElement('span');
-            badge.className = 'badge-removable badge-allergy-info';
-            badge.innerHTML = name + ' <button type="button" onclick="this.parentElement.remove()">&times;</button>';
-
-            document.getElementById('allergyEditList').appendChild(badge);
-            input.value = '';
-        }
-        function saveProfile(e) {
-            e.preventDefault();
-            // Fake data only — no backend save yet.
-            // Once wired to the database, this should POST/PATCH to
-            // a customer.profile.update route.
-            alert('Profile changes saved (placeholder — not yet connected to database).');
-            closeEditModal();
-            return false;
-        }
-    </script>
 
 @stop

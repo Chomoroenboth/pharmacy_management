@@ -12,10 +12,10 @@
     .prescription-search input { width: 100%; border: 0; outline: 0; background: transparent; color: #27312d; font: inherit; }
     .prescription-search input::placeholder { color: #79827f; }
     .prescription-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; margin-top: 24px; }
-    .prescription-card { display: flex; min-height: 265px; flex-direction: column; padding: 16px; border: 1px solid #dfe5e3; border-radius: 8px; background: #f8faf9; box-shadow: 0 1px 2px rgba(27, 46, 37, .03); }
+    .prescription-card { display: flex; min-height: 235px; flex-direction: column; padding: 16px; border: 1px solid #dfe5e3; border-radius: 8px; background: #f8faf9; box-shadow: 0 1px 2px rgba(27, 46, 37, .03); }
     .card-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
     .medicine-name { margin: 3px 0 7px; color: #212426; font-size: 18px; line-height: 1.3; font-weight: 700; }
-    .status-badge { display: inline-block; padding: 4px 9px; border-radius: 4px; font-size: 12px; line-height: 1; font-weight: 650; text-transform: capitalize; }
+    .status-badge { display: inline-block; padding: 4px 9px; border-radius: 4px; font-size: 12px; line-height: 1; font-weight: 650; text-transform: capitalize; flex-shrink: 0; }
     .status-active { color: #146449; background: #ccefe2; }
     .status-filled { color: #175f99; background: #dbeeff; }
     .status-expired { color: #b42318; background: #f9dddd; }
@@ -33,66 +33,91 @@
     .prescription-card.is-hidden { display: none; }
     .search-no-results { display: none; grid-column: 1 / -1; padding: 42px 20px; color: #69736f; text-align: center; }
     .search-no-results.is-visible { display: block; }
+    .loading-text { grid-column: 1 / -1; padding: 42px 20px; color: #69736f; text-align: center; }
     @media (max-width: 900px) { .prescription-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 600px) { .prescriptions-panel { padding: 20px; } .prescriptions-heading { align-items: flex-start; flex-direction: column; } .prescription-search { width: 100%; } .prescription-grid { grid-template-columns: 1fr; } }
 </style>
+
+@vite(['resources/js/app.js'])
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const grid = document.getElementById('prescriptionGrid');
+    const searchInput = document.getElementById('medicine-search');
+    const noResults = document.getElementById('search-no-results');
+
+    async function loadPrescriptions() {
+        try {
+            const response = await window.axios.get('/api/prescriptions');
+            const prescriptions = response.data.data;
+
+            if (!prescriptions.length) {
+                grid.innerHTML = '<p class="empty-prescriptions">No prescriptions are available.</p>';
+                return;
+            }
+
+            grid.innerHTML = prescriptions.map(function (rx) {
+                const doctorName = `${rx.doctor_first_name} ${rx.doctor_last_name ?? ''}`.trim();
+                const detailUrl = "{{ route('customer.prescriptions.details', '__ID__') }}".replace('__ID__', rx.prescription_id);
+                const issueDate = new Date(rx.issue_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+                const expiryDate = new Date(rx.expiry_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+
+                return `
+                    <article class="prescription-card" data-search="${doctorName.toLowerCase()} ${rx.prescription_id}">
+                        <div class="card-top">
+                            <h2 class="medicine-name">Prescription #${rx.prescription_id}</h2>
+                            <span class="status-badge status-${rx.status.toLowerCase()}">${rx.status.charAt(0).toUpperCase() + rx.status.slice(1)}</span>
+                        </div>
+                        <p class="doctor-name"><span class="doctor-icon"></span>Dr. ${doctorName}</p>
+                        <dl class="rx-data">
+                            <div class="rx-row"><dt>Issue Date:</dt><dd>${issueDate}</dd></div>
+                            <div class="rx-row"><dt>Expiry Date:</dt><dd>${expiryDate}</dd></div>
+                        </dl>
+                        <a class="details-link" href="${detailUrl}">View Details <span class="arrow">→</span></a>
+                    </article>
+                `;
+            }).join('');
+
+        } catch (err) {
+            if (err.response?.status === 401) {
+                window.location.href = "{{ route('customer.login') }}";
+                return;
+            }
+            grid.innerHTML = '<p class="empty-prescriptions">Failed to load prescriptions.</p>';
+            console.error('Failed to load prescriptions:', err);
+        }
+    }
+
+    searchInput.addEventListener('input', function () {
+        const term = this.value.trim().toLowerCase();
+        const cards = document.querySelectorAll('.prescription-card');
+        let visibleCount = 0;
+
+        cards.forEach(function (card) {
+            const matches = (card.dataset.search || '').includes(term);
+            card.classList.toggle('is-hidden', !matches);
+            if (matches) visibleCount++;
+        });
+
+        noResults.classList.toggle('is-visible', term !== '' && visibleCount === 0);
+    });
+
+    loadPrescriptions();
+});
+</script>
 @endsection
 
 @section('content')
 <section class="prescriptions-panel">
     <div class="prescriptions-heading">
         <h1>My Prescriptions</h1>
-        <label class="prescription-search" for="medicine-search"><span class="search-icon" aria-hidden="true"></span><input id="medicine-search" type="search" placeholder="Search by medicine..." autocomplete="off"></label>
+        <label class="prescription-search" for="medicine-search">
+            <span class="search-icon" aria-hidden="true"></span>
+            <input id="medicine-search" type="search" placeholder="Search by doctor or ID..." autocomplete="off">
+        </label>
     </div>
-    <div class="prescription-grid">
-        @forelse($prescriptions as $prescription)
-            <article class="prescription-card" data-medicine="{{ strtolower($prescription->medicine_name) }}">
-                <div class="card-top">
-                    <h2 class="medicine-name">{{ $prescription->medicine_name }}</h2>
-                    <span class="status-badge status-{{ strtolower($prescription->status) }}">{{ ucfirst($prescription->status) }}</span>
-                </div>
-                <p class="doctor-name"><span class="doctor-icon" aria-hidden="true"></span>Dr. {{ $prescription->doctor_first_name }} {{ $prescription->doctor_last_name }}</p>
-                <dl class="rx-data">
-                    <div class="rx-row"><dt>Prescription ID:</dt><dd>#{{ $prescription->prescription_id }}</dd></div>
-                    <div class="rx-row"><dt>Issue Date:</dt><dd>{{ \Carbon\Carbon::parse($prescription->issue_date)->format('M d, Y') }}</dd></div>
-                    <div class="rx-row"><dt>Expiry Date:</dt><dd>{{ \Carbon\Carbon::parse($prescription->expiry_date)->format('M d, Y') }}</dd></div>
-                </dl>
-                <a class="details-link" href="{{ route('customer.prescriptions.details', $prescription->prescription_id) }}">View Details <span class="arrow" aria-hidden="true">→</span></a>
-            </article>
-        @empty
-            <p class="empty-prescriptions">No prescriptions are available.</p>
-        @endforelse
-        <p class="search-no-results" id="search-no-results">No prescriptions match that medicine.</p>
+    <div class="prescription-grid" id="prescriptionGrid">
+        <p class="loading-text">Loading prescriptions...</p>
     </div>
+    <p class="search-no-results" id="search-no-results">No prescriptions match that search.</p>
 </section>
-
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const searchInput = document.getElementById('medicine-search');
-        const prescriptionCards = document.querySelectorAll('.prescription-card');
-        const noResults = document.getElementById('search-no-results');
-
-        if (!searchInput) {
-            return;
-        }
-
-        searchInput.addEventListener('input', function () {
-            const searchTerm = this.value.trim().toLowerCase();
-            let visibleCards = 0;
-
-            prescriptionCards.forEach(function (card) {
-                const medicineName = card.dataset.medicine || '';
-                const matches = medicineName.includes(searchTerm);
-
-                card.classList.toggle('is-hidden', !matches);
-
-                if (matches) {
-                    visibleCards++;
-                }
-            });
-
-            noResults.classList.toggle('is-visible', searchTerm !== '' && visibleCards === 0);
-        });
-    });
-</script>
 @endsection

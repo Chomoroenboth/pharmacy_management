@@ -149,20 +149,21 @@
         </form>
 
         <div class="nav-right">
-            <a href="{{ route('customer.prescriptions') }}"
+           <a href="{{ route('customer.prescriptions') }}"
                class="nav-link {{ request()->routeIs('customer.prescriptions*') ? 'active' : '' }}">
                 <i class="fa-solid fa-file-prescription"></i> Prescriptions
-                <i class="fa-solid fa-cart-shopping"></i> Cart
             </a>
 
-            <a href="{{ route('customer.cart') }}" class="nav-link">
+            <a href="{{ route('customer.cart') }}"
+               class="nav-link {{ request()->routeIs('customer.cart') ? 'active' : '' }}">
                 <i class="fa-solid fa-cart-shopping"></i> Cart
             </a>
+            <a href="{{ route('customer.profile') }}" style="display:flex; align-items:center; gap:10px; text-decoration:none; color:inherit;">
+                <div class="avatar" id="navAvatarInitials">JD</div>
+                <div class="user-name" id="navUserName">Loading...</div>
+            </a>
 
-            <div class="avatar">{{ $userInitials ?? 'JD' }}</div>
-            <div class="user-name">{{ $userName ?? 'John Doe' }}</div>
-
-            <a href="#" class="logout-btn">Log Out</a>
+            <a href="#" id="logoutBtn" class="logout-btn">Log Out</a>
         </div>
     </div>
 
@@ -177,6 +178,33 @@
         @yield('content')
 
     </div>
+    @vite(['resources/js/app.js'])
+    <script>
+        document.addEventListener('DOMContentLoaded', async function () {
+            try {
+                const response = await window.axios.get('/api/profile');
+                const user = response.data.data;
+                const initials = (user.first_name?.[0] ?? '') + (user.last_name?.[0] ?? '');
+                document.getElementById('navAvatarInitials').textContent = initials.toUpperCase();
+                document.getElementById('navUserName').textContent = `${user.first_name} ${user.last_name ?? ''}`.trim();
+            } catch (err) {
+                console.error('Failed to load nav profile info:', err);
+            }
+
+            const logoutBtn = document.getElementById('logoutBtn');
+            logoutBtn.addEventListener('click', async function (e) {
+                e.preventDefault();
+                try {
+                    await window.axios.post('/api/auth/logout');
+                } catch (err) {
+                }
+                window.logout();
+                window.location.href = "{{ route('customer.login') }}";
+            });
+        });
+    </script>
+
+</body>
 
 </body>
 </html>

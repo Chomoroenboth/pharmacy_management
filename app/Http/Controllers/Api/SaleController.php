@@ -19,8 +19,9 @@ class SaleController extends Controller
         }
 
         $userId = $user->user_id ?? $user->id;
+        $saleId = null;
 
-        DB::transaction(function () use ($userId) {
+        DB::transaction(function () use ($userId, &$saleId) {
             $cartItems = DB::table('carts')->where('user_id', $userId)->get();
             $totalPrice = 0;
 
@@ -56,7 +57,11 @@ class SaleController extends Controller
             DB::table('carts')->where('user_id', $userId)->delete();
         });
 
-        return response()->json(['message' => 'Checkout complete, pending payment']);
+        return response()->json([
+            'status'  => 'success',
+            'message' => 'Checkout complete, pending payment',
+            'sale_id' => $saleId,
+        ]);
     }
 
     // GET /shop/sales?start_date=&end_date=&payment_status=&page=&per_page=
@@ -97,17 +102,17 @@ class SaleController extends Controller
         }
 
         if ($request->filled('payment_status')) {
-    $status = strtolower($request->payment_status);
+            $status = strtolower($request->payment_status);
 
-    if ($status === 'unpaid') {
-        // Unpaid means either no payment row exists yet, or one exists marked unpaid
-        $query->where(function ($q) {
-            $q->whereNull('p.status')->orWhere('p.status', 'unpaid');
-        });
-    } else {
-        $query->where('p.status', $status);
-    }
-}
+            if ($status === 'unpaid') {
+                // Unpaid means either no payment row exists yet, or one exists marked unpaid
+                $query->where(function ($q) {
+                    $q->whereNull('p.status')->orWhere('p.status', 'unpaid');
+                });
+            } else {
+                $query->where('p.status', $status);
+            }
+        }
 
         $query->orderByDesc('sa.sale_date');
 

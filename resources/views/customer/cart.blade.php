@@ -18,17 +18,17 @@
     .cart-row:last-child { border-bottom: none; }
     .item-name { font-size: 15px; font-weight: 600; }
     .item-meta { font-size: 12px; color: #6b7280; margin-top: 2px; }
-    .remove-form button {
+    .remove-btn {
         color: #dc2626; font-size: 12px; margin-top: 4px;
         background: none; border: none; cursor: pointer; padding: 0; text-decoration: underline;
     }
     .qty-controls { display: flex; align-items: center; gap: 8px; }
-    .qty-form { display: inline; }
     .qty-btn {
         width: 28px; height: 28px; border: 1px solid #d1d5db; border-radius: 4px;
         background: #fff; cursor: pointer; font-size: 14px;
     }
     .qty-btn:hover { background: #f3f4f6; }
+    .qty-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .item-price { width: 70px; text-align: right; font-size: 14px; color: #6b7280; }
     .item-total { width: 80px; text-align: right; font-weight: 600; }
 
@@ -51,9 +51,147 @@
         width: 100%; padding: 14px; background: #10b981; color: #fff;
         border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer;
     }
-    .btn-confirm:hover { background: #0ea371; }
+    .btn-confirm:disabled { background: #9ca3af; cursor: not-allowed; }
     .empty-cart { text-align: center; padding: 40px; color: #6b7280; }
+    .loading-text { color: #6b7280; padding: 20px 0; }
+    .checkout-note { font-size: 12px; color: #9ca3af; margin-top: 8px; text-align: center; }
 </style>
+
+@vite(['resources/js/app.js'])
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const itemsContainer = document.getElementById('cartItemsContainer');
+    const statusEl = document.getElementById('cartStatus');
+    const subtotalEl = document.getElementById('subtotalDisplay');
+    const totalEl = document.getElementById('totalDisplay');
+    const confirmBtn = document.getElementById('confirmPurchaseBtn');
+    const checkoutError = document.getElementById('checkoutError');
+
+    async function loadCart() {
+        statusEl.textContent = 'Loading your cart...';
+        statusEl.style.display = 'block';
+        itemsContainer.innerHTML = '';
+
+        try {
+            const response = await window.axios.get('/api/cart');
+            const items = response.data.data;
+
+            if (!items.length) {
+                statusEl.innerHTML = 'Your cart is empty. <a href="{{ route('customer.otc-shop') }}">Browse medicines</a> to add items.';
+                itemsContainer.classList.add('empty-cart');
+                updateSummary(0);
+                confirmBtn.disabled = true;
+                return;
+            }
+
+            statusEl.style.display = 'none';
+            itemsContainer.classList.remove('empty-cart');
+
+            itemsContainer.innerHTML = items.map(function (item) {
+                return `
+                    <div class="cart-row" data-cart-id="${item.cart_id}">
+                        <div>
+                            <div class="item-name">${item.medicine_name}</div>
+                            <button type="button" class="remove-btn" data-cart-id="${item.cart_id}">Remove</button>
+                        </div>
+                        <div class="qty-controls">
+                            <button type="button" class="qty-btn qty-decrease" data-cart-id="${item.cart_id}" data-qty="${item.quantity}">-</button>
+                            <span class="qty-display">${item.quantity}</span>
+                            <button type="button" class="qty-btn qty-increase" data-cart-id="${item.cart_id}" data-qty="${item.quantity}">+</button>
+                        </div>
+                        <div class="item-price">$${Number(item.price).toFixed(2)}</div>
+                        <div class="item-total">$${Number(item.subtotal).toFixed(2)}</div>
+                    </div>
+                `;
+            }).join('');
+
+            const total = items.reduce((sum, item) => sum + Number(item.subtotal), 0);
+            updateSummary(total);
+            confirmBtn.disabled = false;
+
+        } catch (err) {
+            if (err.response?.status === 401) {
+                window.location.href = "{{ route('customer.login') }}";
+                return;
+            }
+            statusEl.textContent = 'Failed to load your cart. Please try again.';
+            console.error('Failed to load cart:', err);
+        }
+    }
+
+    function updateSummary(total) {
+        subtotalEl.textContent = '$' + total.toFixed(2);
+        totalEl.textContent = '$' + total.toFixed(2);
+    }
+
+    async function updateQuantity(cartId, newQuantity) {
+        if (newQuantity < 1) {
+            return removeItem(cartId);
+        }
+        try {
+            await window.axios.put('/api/cart/' + cartId, { quantity: newQuantity });
+            loadCart();
+        } catch (err) {
+            console.error('Failed to update quantity:', err);
+        }
+    }
+
+    async function removeItem(cartId) {
+        try {
+            await window.axios.delete('/api/cart/' + cartId);
+            loadCart();
+        } catch (err) {
+            console.error('Failed to remove item:', err);
+        }
+    }
+
+    itemsContainer.addEventListener('click', function (e) {
+        const cartId = e.target.dataset.cartId;
+        if (!cartId) return;
+
+        if (e.target.matches('.qty-increase')) {
+            const currentQty = parseInt(e.target.dataset.qty, 10);
+            updateQuantity(cartId, currentQty + 1);
+        } else if (e.target.matches('.qty-decrease')) {
+            const currentQty = parseInt(e.target.dataset.qty, 10);
+            updateQuantity(cartId, currentQty - 1);
+        } else if (e.target.matches('.remove-btn')) {
+            removeItem(cartId);
+        }
+    });
+    confirmBtn.addEventListener('click', async function () {
+        const selectedMethod = document.querySelector('input[name="payment_method"]:checked').value;
+
+        checkoutError.style.display = 'none';
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Processing...';
+
+        try {
+            const checkoutResponse = await window.axios.post('/api/shop/checkout');
+            const saleId = checkoutResponse.data.sale_id;
+
+            await window.axios.post('/api/shop/sales/' + saleId + '/payment', {
+                payment_method: selectedMethod,
+            });
+
+            window.location.href = "{{ route('customer.purchase.detail', '__SALE_ID__') }}".replace('__SALE_ID__', saleId);
+
+        } catch (err) {
+            if (err.response?.status === 401) {
+                window.location.href = "{{ route('customer.login') }}";
+                return;
+            }
+            checkoutError.textContent = err.response?.data?.message || 'Checkout failed. Please try again.';
+            checkoutError.style.display = 'block';
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'Confirm Purchase';
+            console.error('Checkout failed:', err);
+        }
+    });
+
+    loadCart();
+});
+</script>
 @endsection
 
 @section('content')
@@ -66,75 +204,43 @@
                 <a href="{{ route('customer.otc-shop') }}" class="back-link">&larr; Back to Shop</a>
             </div>
 
-            @forelse($cartItems as $item)
-            <div class="cart-row">
-                <div>
-                    <div class="item-name">{{ $item->medicine_name }}</div>
-                    <div class="item-meta">{{ $item->brand }}</div>
-                    <form action="{{ route('customer.cart.remove', $item->medicine_id) }}" method="POST" class="remove-form">
-                        @csrf
-                        @method('DELETE')
-                        <button type="submit">Remove</button>
-                    </form>
-                </div>
-                <div class="qty-controls">
-                    <form action="{{ route('customer.cart.update', $item->medicine_id) }}" method="POST" class="qty-form">
-                        @csrf
-                        <input type="hidden" name="action" value="decrease">
-                        <button type="submit" class="qty-btn">-</button>
-                    </form>
-                    <span>{{ $item->quantity }}</span>
-                    <form action="{{ route('customer.cart.update', $item->medicine_id) }}" method="POST" class="qty-form">
-                        @csrf
-                        <input type="hidden" name="action" value="increase">
-                        <button type="submit" class="qty-btn">+</button>
-                    </form>
-                </div>
-                <div class="item-price">${{ number_format($item->price, 2) }}</div>
-                <div class="item-total">${{ number_format($item->price * $item->quantity, 2) }}</div>
-            </div>
-            @empty
-            <div class="empty-cart">
-                Your cart is empty. <a href="{{ route('customer.otc-shop') }}">Browse medicines</a> to add items.
-            </div>
-            @endforelse
+            <p id="cartStatus" class="loading-text">Loading your cart...</p>
+            <div id="cartItemsContainer"></div>
         </div>
 
         <div class="payment-card">
-            <form action="{{ route('customer.cart.checkout') }}" method="POST">
-                @csrf
-                <div class="payment-title">Payment Method</div>
-                <div class="payment-methods">
-                    <label class="payment-option">
-                        <input type="radio" name="payment_method" value="cash" checked>
-                        <span>Cash</span>
-                    </label>
-                    <label class="payment-option">
-                        <input type="radio" name="payment_method" value="credit_card">
-                        <span>Credit Card</span>
-                    </label>
-                    <label class="payment-option">
-                        <input type="radio" name="payment_method" value="debit_card">
-                        <span>Debit Card</span>
-                    </label>
-                    <label class="payment-option">
-                        <input type="radio" name="payment_method" value="transfer">
-                        <span>Transfer</span>
-                    </label>
-                </div>
+            <div class="payment-title">Payment Method</div>
+            <div class="payment-methods">
+                <label class="payment-option">
+                    <input type="radio" name="payment_method" value="cash" checked>
+                    <span>Cash</span>
+                </label>
+                <label class="payment-option">
+                    <input type="radio" name="payment_method" value="credit_card">
+                    <span>Credit Card</span>
+                </label>
+                <label class="payment-option">
+                    <input type="radio" name="payment_method" value="debit_card">
+                    <span>Debit Card</span>
+                </label>
+                <label class="payment-option">
+                    <input type="radio" name="payment_method" value="transfer">
+                    <span>Transfer</span>
+                </label>
+            </div>
 
-                <div class="payment-title">Order Summary</div>
-                <div class="summary-row">
-                    <span>Subtotal</span>
-                    <span>${{ number_format($subtotal, 2) }}</span>
-                </div>
-                <div class="summary-total">
-                    <span>Total</span>
-                    <span>${{ number_format($subtotal, 2) }}</span>
-                </div>
+            <div class="payment-title">Order Summary</div>
+            <div class="summary-row">
+                <span>Subtotal</span>
+                <span id="subtotalDisplay">$0.00</span>
+            </div>
+            <div class="summary-total">
+                <span>Total</span>
+                <span id="totalDisplay">$0.00</span>
+            </div>
 
-                <button type="submit" class="btn-confirm" {{ $cartItems->isEmpty() ? 'disabled' : '' }}>Confirm Purchase</button>
-            </form>
+            <button type="button" id="confirmPurchaseBtn" class="btn-confirm" disabled>Confirm Purchase</button>
+            <p id="checkoutError" class="checkout-note" style="color:#dc2626; display:none;"></p>
         </div>
 
     </div>

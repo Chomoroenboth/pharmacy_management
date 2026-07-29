@@ -154,8 +154,8 @@
 
         </nav>
 
-        <div class="sidebar-footer">
-            <a href="#">
+            <div class="sidebar-footer">
+            <a href="#" id="logoutBtn">
                 &#8618; Log Out
             </a>
         </div>
@@ -169,6 +169,23 @@
 
 
 </div>
+        @vite(['resources/js/app.js'])
+            <script>
+                document.addEventListener('DOMContentLoaded', function () {
+                    const logoutBtn = document.getElementById('logoutBtn');
+                    logoutBtn.addEventListener('click', async function (e) {
+                        e.preventDefault();
+                        try {
+                            await window.axios.post('/api/staff/logout');
+                        } catch (err) {
+                        }
+                        window.logout();
+                        window.location.href = "{{ route('admin.login') }}";
+                    });
+                });
+            </script>
+
+        </body>
 
 </body>
 </html>

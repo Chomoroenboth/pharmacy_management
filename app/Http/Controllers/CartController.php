@@ -154,24 +154,6 @@ class CartController extends Controller
 
     public function purchaseDetail($id)
     {
-        $purchase = Session::get('last_purchase');
-
-        if (!$purchase) {
-            $purchase = (object) [
-                'display_id' => 'SALE001',
-                'date' => 'Oct 24, 2023',
-                'type' => 'Over the Counter (OTC)',
-                'status' => 'paid',
-                'payment_method' => 'credit_card',
-                'doctor_name' => null,
-                'total' => 48.49,
-                'items' => collect([
-                    (object) ['medicine_name' => 'Amoxicillin 500mg', 'quantity' => 2, 'unit_price' => 12.50, 'subtotal' => 25.00],
-                    (object) ['medicine_name' => 'Ibuprofen 200mg', 'quantity' => 1, 'unit_price' => 8.99, 'subtotal' => 8.99],
-                ]),
-            ];
-        }
-
-        return view('customer.purchase-detail', compact('purchase'));
+        return view('customer.purchase-detail', ['saleId' => $id]);
     }
 }

@@ -30,30 +30,115 @@
     .medicine-table th { padding: 13px 16px; background: #f1f3f4; color: #46514c; font-size: 12px; font-weight: 750; letter-spacing: .3px; text-align: left; text-transform: uppercase; }
     .medicine-table td { padding: 17px 16px; border-bottom: 1px solid #e4e8e6; color: #3d4642; font-size: 14px; line-height: 1.4; vertical-align: top; }
     .medicine-table td:first-child { color: #202124; font-weight: 700; }
-    .medicine-table th:nth-child(1) { width: 21%; } .medicine-table th:nth-child(2) { width: 14%; } .medicine-table th:nth-child(3) { width: 16%; }
+    .loading-text { padding: 42px 0; color: #69736f; text-align: center; }
     @media (max-width: 700px) { .prescription-details { margin-top: 0; padding: 24px 20px 30px; } .details-toolbar { align-items: flex-start; flex-direction: column; } .details-title { font-size: 23px; } .info-summary { grid-template-columns: 1fr; gap: 26px; padding: 22px 18px; } }
 </style>
+
+@vite(['resources/js/app.js'])
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const prescriptionId = {{ (int) $prescriptionId }};
+    const container = document.getElementById('detailsContainer');
+
+    async function loadDetails() {
+        try {
+            const [rxResponse, profileResponse] = await Promise.all([
+                window.axios.get('/api/prescriptions/' + prescriptionId),
+                window.axios.get('/api/profile'),
+            ]);
+
+            const prescription = rxResponse.data.data.prescription;
+            const medicines = rxResponse.data.data.medicines;
+            const patient = profileResponse.data.data;
+
+            const isExpired = prescription.status === 'expired';
+            const doctorName = `${prescription.doctor_first_name} ${prescription.doctor_last_name ?? ''}`.trim();
+
+            const medicineRows = medicines.map(function (m) {
+                return `
+                    <tr>
+                        <td>${m.medicine_name}</td>
+                        <td>${m.dosage ?? '—'}</td>
+                        <td>${m.quantity}</td>
+                        <td>${m.instructions ?? '—'}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            container.innerHTML = `
+                <div class="details-toolbar">
+                    <a class="back-link" href="{{ route('customer.prescriptions') }}"><span class="back-arrow">←</span>Back to Prescriptions</a>
+                    ${isExpired
+                        ? '<span class="validation-banner expired"><span class="validation-icon">!</span>Expired Prescription</span>'
+                        : '<span class="validation-banner valid"><span class="validation-icon">✓</span>Valid Prescription</span>'}
+                </div>
+                <h1 class="details-title">Prescription #${prescription.prescription_id}</h1>
+                ${isExpired ? `
+                    <div class="expired-alert" role="alert">
+                        <span class="alert-icon">!</span>
+                        <div>
+                            <strong>Expired Prescription</strong>
+                            <p>This prescription expired on ${new Date(prescription.expiry_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}. A new authorization is required for further dispensing.</p>
+                        </div>
+                    </div>
+                ` : ''}
+                <div class="info-summary">
+                    <section class="info-block">
+                        <h2>Prescription Information</h2>
+                        <dl class="info-list">
+                            <div><dt>Prescription ID</dt><dd>#${prescription.prescription_id}</dd></div>
+                            <div><dt>Issue Date</dt><dd>${new Date(prescription.issue_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</dd></div>
+                            <div><dt>Expiry Date</dt><dd>${new Date(prescription.expiry_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</dd></div>
+                            <div><dt>Status</dt><dd>${prescription.status.charAt(0).toUpperCase() + prescription.status.slice(1)}</dd></div>
+                            <div><dt>Notes</dt><dd>${prescription.notes || 'No notes available.'}</dd></div>
+                        </dl>
+                    </section>
+                    <section class="info-block">
+                        <h2>Doctor Information</h2>
+                        <dl class="info-list">
+                            <div><dt>Doctor Name</dt><dd>Dr. ${doctorName}</dd></div>
+                            <div><dt>Clinic</dt><dd>${prescription.doctor_clinic ?? '—'}</dd></div>
+                        </dl>
+                    </section>
+                    <section class="info-block">
+                        <h2>Patient Information</h2>
+                        <dl class="info-list">
+                            <div><dt>First Name</dt><dd>${patient.first_name}</dd></div>
+                            <div><dt>Last Name</dt><dd>${patient.last_name ?? '—'}</dd></div>
+                            <div><dt>Date of Birth</dt><dd>${patient.date_of_birth ? new Date(patient.date_of_birth).toLocaleDateString('en-US') : '—'}</dd></div>
+                        </dl>
+                    </section>
+                </div>
+                <section class="medicine-section">
+                    <h2>Prescribed Medicines</h2>
+                    <div class="medicine-table-wrap">
+                        <table class="medicine-table">
+                            <thead>
+                                <tr><th>Medicine</th><th>Dosage</th><th>Quantity</th><th>Instructions</th></tr>
+                            </thead>
+                            <tbody>${medicineRows}</tbody>
+                        </table>
+                    </div>
+                </section>
+            `;
+
+        } catch (err) {
+            if (err.response?.status === 401) {
+                window.location.href = "{{ route('customer.login') }}";
+                return;
+            }
+            container.innerHTML = '<p class="loading-text">Could not load this prescription. It may not exist or you may not have access to it.</p>';
+            console.error('Failed to load prescription details:', err);
+        }
+    }
+
+    loadDetails();
+});
+</script>
 @endsection
 
 @section('content')
-<section class="prescription-details">
-    <div class="details-toolbar">
-        <a class="back-link" href="{{ route('customer.prescriptions') }}"><span class="back-arrow" aria-hidden="true">←</span>Back to Prescriptions</a>
-        @if($prescription->status == 'expired')
-            <span class="validation-banner expired"><span class="validation-icon">!</span>Expired Prescription</span>
-        @else
-            <span class="validation-banner valid"><span class="validation-icon">✓</span>Valid Prescription</span>
-        @endif
-    </div>
-    <h1 class="details-title">Prescription #{{ $prescription->prescription_id }}</h1>
-    @if($prescription->status == 'expired')
-        <div class="expired-alert" role="alert"><span class="alert-icon">!</span><div><strong>Expired Prescription</strong><p>This prescription expired on {{ \Carbon\Carbon::parse($prescription->expiry_date)->format('F d, Y') }}. A new authorization is required for further dispensing.</p></div></div>
-    @endif
-    <div class="info-summary">
-        <section class="info-block"><h2>Prescription Information</h2><dl class="info-list"><div><dt>Prescription ID</dt><dd>#{{ $prescription->prescription_id }}</dd></div><div><dt>Issue Date</dt><dd>{{ \Carbon\Carbon::parse($prescription->issue_date)->format('F d, Y') }}</dd></div><div><dt>Expiry Date</dt><dd>{{ \Carbon\Carbon::parse($prescription->expiry_date)->format('F d, Y') }}</dd></div><div><dt>Status</dt><dd>{{ ucfirst($prescription->status) }}</dd></div><div><dt>Notes</dt><dd>{{ $prescription->notes ?: 'No notes available.' }}</dd></div></dl></section>
-        <section class="info-block"><h2>Doctor Information</h2><dl class="info-list"><div><dt>Doctor Name</dt><dd>Dr. {{ $prescription->doctor_first_name }} {{ $prescription->doctor_last_name }}</dd></div><div><dt>Clinic</dt><dd>{{ $prescription->doctor_clinic }}</dd></div></dl></section>
-        <section class="info-block"><h2>Patient Information</h2><dl class="info-list"><div><dt>First Name</dt><dd>{{ $patient->first_name }}</dd></div><div><dt>Last Name</dt><dd>{{ $patient->last_name }}</dd></div><div><dt>Date of Birth</dt><dd>{{ \Carbon\Carbon::parse($patient->date_of_birth)->format('m/d/Y') }}</dd></div></dl></section>
-    </div>
-    <section class="medicine-section"><h2>Prescribed Medicines</h2><div class="medicine-table-wrap"><table class="medicine-table"><thead><tr><th>Medicine</th><th>Dosage</th><th>Quantity</th><th>Instructions</th></tr></thead><tbody>@foreach($medicines as $medicine)<tr><td>{{ $medicine->medicine_name }}</td><td>{{ $medicine->dosage }}</td><td>{{ $medicine->quantity }}</td><td>{{ $medicine->instructions }}</td></tr>@endforeach</tbody></table></div></section>
+<section class="prescription-details" id="detailsContainer">
+    <p class="loading-text">Loading prescription details...</p>
 </section>
 @endsection

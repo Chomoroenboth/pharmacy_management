@@ -33,23 +33,27 @@
 </script>
 @vite(['resources/js/app.js'])
 <script>
-document.getElementById('customerLoginForm').addEventListener('submit', async function (e) {
-    e.preventDefault();
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('customerLoginForm');
     const errorEl = document.getElementById('loginError');
-    errorEl.style.display = 'none';
 
-    try {
-        const response = await window.axios.post('/api/auth/login', {
-            email: document.getElementById('identifier').value, // NOTE: API expects "email" — see caveat below
-            password: document.getElementById('password').value,
-        });
+    form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        errorEl.style.display = 'none';
 
-        window.saveAuth(response.data.token, response.data.user);
-        window.location.href = "{{ route('customer.dashboard') }}";
-    } catch (err) {
-        errorEl.innerText = err.response?.data?.message || 'Login failed. Please try again.';
-        errorEl.style.display = 'block';
-    }
+        try {
+            const response = await window.axios.post('/api/auth/login', {
+                email: document.getElementById('identifier').value,
+                password: document.getElementById('password').value,
+            });
+
+            window.saveAuth(response.data.token, response.data.user);
+            window.location.href = "{{ route('customer.dashboard') }}";
+        } catch (err) {
+            errorEl.innerText = err.response?.data?.message || 'Login failed. Please try again.';
+            errorEl.style.display = 'block';
+        }
+    });
 });
 </script>
 @endsection
