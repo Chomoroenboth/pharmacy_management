@@ -47,29 +47,11 @@ class PrescriptionController extends Controller
         ],
     ];
 
-    public function index()
+   public function index()
     {
-        $prescriptions = collect($this->prescriptions)->map(fn($p, $id) => (object) [
-            'id' => $id,
-            'code' => $p['code'],
-            'customer' => $p['customer'],
-            'doctor' => $p['doctor'],
-            'issue_date' => $p['issue_date'],
-            'expiry_date' => $p['expiry_date'],
-            'status' => $p['status'],
-        ])->values();
-
-        $pagination = ['from' => 1, 'to' => 5, 'total' => 42];
-
-        return view('admin.prescriptions.index', compact('prescriptions', 'pagination'));
+        return view('admin.prescriptions.index');
     }
 
-    /**
-     * Display the signed-in customer's prescriptions.
-     *
-     * This is intentionally shaped like the future prescription list API:
-     * every item contains prescription fields plus the joined medicine name.
-     */
     public function prescriptions()
     {
         return view('customer.prescriptions');
@@ -101,26 +83,9 @@ class PrescriptionController extends Controller
     }
 
     public function show($id)
-    {
-        $p = $this->prescriptions[$id] ?? $this->prescriptions[1];
-
-        $prescription = (object) [
-            'id' => $id,
-            'code' => $p['code'],
-            'customer' => $p['customer'],
-            'doctor' => $p['doctor'],
-            'clinic' => $p['clinic'],
-            'license' => $p['license'],
-            'status' => $p['status'],
-            'expiry_date' => $p['expiry_date'],
-            'notes' => $p['notes'],
-        ];
-
-        $medicines = collect($p['medicines'])->map(fn($m) => (object) $m);
-
-        return view('admin.prescriptions.show', compact('prescription', 'medicines'));
-    }
-
+{
+    return view('admin.prescriptions.show', ['prescriptionId' => $id]);
+}
     public function update(Request $request, $id)
     {
         $request->validate([

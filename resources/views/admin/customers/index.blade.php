@@ -38,7 +38,7 @@
 </style>
 @endsection
 
-@section('content')
+        @section('content')
 
     <div class="page-header">
         <h1>Customers</h1>
@@ -55,32 +55,100 @@
                     <th>ACTIONS</th>
                 </tr>
             </thead>
-            <tbody>
-                @foreach($customers as $c)
-                <tr>
-                    <td>#{{ $c->display_id }}</td>
-                    <td class="cust-name">{{ $c->full_name }}</td>
-                    <td>{{ $c->phone }}</td>
-                    <td>
-                        <div class="actions-cell">
-                            <a href="{{ route('admin.customers.show', $c->id) }}" class="icon-btn" title="View">&#128065;</a>
-                        </div>
-                    </td>
-                </tr>
-                @endforeach
+            <tbody id="cust-table-body">
+                <tr class="loading-row"><td colspan="4">Loading customers...</td></tr>
             </tbody>
         </table>
 
         <div class="table-footer">
-            <div>Showing {{ $pagination['from'] }} to {{ $pagination['to'] }} of {{ $pagination['total'] }} entries</div>
-            <div class="pagination">
-                <button class="page-btn">&lsaquo;</button>
-                <button class="page-btn active">1</button>
-                <button class="page-btn">2</button>
-                <button class="page-btn">3</button>
-                <button class="page-btn">&rsaquo;</button>
-            </div>
+            <div id="cust-showing-text">Showing 0 of 0 entries</div>
+            <div class="pagination" id="cust-pagination"></div>
         </div>
     </div>
 
+@stop
+@section('page-js')
+<script>
+(function () {
+    const perPage = 5;
+
+    function authToken() {
+        return localStorage.getItem('auth_token');
+    }
+
+    function renderRows(customers) {
+        const tbody = document.getElementById('cust-table-body');
+
+        if (!customers.length) {
+            tbody.innerHTML = '<tr class="empty-row"><td colspan="4">No customers found.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = customers.map(c => `
+            <tr>
+                <td>#${c.display_id}</td>
+                <td class="cust-name">${c.full_name}</td>
+                <td>${c.phone_number ?? '—'}</td>
+                <td>
+                    <div class="actions-cell">
+                        <a href="/admin/customers/${c.user_id}" class="icon-btn" title="View">&#128065;</a>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function renderPagination(meta) {
+        document.getElementById('cust-showing-text').textContent =
+            meta.total === 0
+                ? 'Showing 0 of 0 entries'
+                : `Showing ${((meta.current_page - 1) * meta.per_page) + 1} to ${Math.min(meta.current_page * meta.per_page, meta.total)} of ${meta.total} entries`;
+
+        const pag = document.getElementById('cust-pagination');
+        let html = `<button class="page-btn" ${meta.current_page <= 1 ? 'disabled' : ''} data-page="${meta.current_page - 1}">&lsaquo;</button>`;
+
+        for (let p = 1; p <= meta.last_page; p++) {
+            html += `<button class="page-btn ${p === meta.current_page ? 'active' : ''}" data-page="${p}">${p}</button>`;
+        }
+
+        html += `<button class="page-btn" ${meta.current_page >= meta.last_page ? 'disabled' : ''} data-page="${meta.current_page + 1}">&rsaquo;</button>`;
+        pag.innerHTML = html;
+
+        pag.querySelectorAll('.page-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const page = parseInt(btn.dataset.page, 10);
+                if (page >= 1 && page <= meta.last_page) {
+                    loadCustomers(page);
+                }
+            });
+        });
+    }
+
+    async function loadCustomers(page = 1) {
+        try {
+            const res = await fetch(`/api/staff/customers?per_page=${perPage}&page=${page}`, {
+                headers: {
+                    'Authorization': `Bearer ${authToken()}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (res.status === 401) {
+                window.location.href = '/admin/login';
+                return;
+            }
+
+            const json = await res.json();
+            renderRows(json.data);
+            renderPagination(json.meta);
+        } catch (err) {
+            document.getElementById('cust-table-body').innerHTML =
+                '<tr class="empty-row"><td colspan="4">Failed to load customers.</td></tr>';
+            console.error(err);
+        }
+    }
+
+    loadCustomers();
+})();
+</script>
 @stop

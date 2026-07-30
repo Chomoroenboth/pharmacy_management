@@ -12,8 +12,7 @@
     .records-table { width: 100%; border-collapse: collapse; } .records-table th { padding: 15px 24px; background: #f1f3f4; color: #44534c; font-size: 12px; letter-spacing: .4px; text-align: left; text-transform: uppercase; } .records-table td { padding: 17px 24px; border-bottom: 1px solid #e7ebe9; font-size: 14px; vertical-align: middle; }
     .sale-id { color: #00805e; font-weight: 650; text-decoration: none; } .muted { margin-top: 4px; color: #64716a; font-size: 12px; } .amount { text-align: right; } .status { display: inline-block; padding: 4px 9px; border-radius: 11px; font-size: 12px; } .paid { color: #167658; background: #d9f4e9; } .pending { color: #59625e; background: #ebedef; } .unpaid { color: #b42318; background: #fee4e2; }
     .view-button { display: inline-block; padding: 8px 15px; border: 1px solid #b9c8c1; border-radius: 4px; color: #176a50; font-size: 13px; font-weight: 700; text-decoration: none; } .empty { padding: 35px; color: #6a746f; text-align: center; }
-    .sale-row.is-filtered-out { display: none; } .client-no-results { display: none; } .client-no-results.is-visible { display: table-row; } .client-no-results td { padding: 35px; color: #6a746f; text-align: center; }
-    .table-footer { display: flex; align-items: center; justify-content: space-between; padding: 16px 17px; color: #58655e; font-size: 13px; } .pages { display: flex; gap: 8px; } .pages span { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid #cbd6d0; border-radius: 4px; } .pages .selected { border-color: #00805e; color: #00805e; }
+    .table-footer { display: flex; align-items: center; justify-content: space-between; padding: 16px 17px; color: #58655e; font-size: 13px; } .pages { display: flex; gap: 8px; } .page-btn { display: grid; min-width: 32px; height: 32px; place-items: center; border: 1px solid #cbd6d0; border-radius: 4px; background: #fff; color: #58655e; font-size: 13px; cursor: pointer; } .page-btn.active { border-color: #00805e; color: #00805e; font-weight: 700; } .page-btn:disabled { opacity: .4; cursor: not-allowed; }
     @media (max-width: 850px) { .records-card { overflow-x: auto; } .filters { min-width: 720px; } .records-table { min-width: 820px; } } @media (max-width: 560px) { .page-heading h1 { font-size: 27px; } }
 </style>
 @endsection
@@ -21,40 +20,149 @@
 @section('content')
 <div class="page-heading"><h1>Sales Records</h1><p>Manage and review all sales transactions.</p></div>
 <section class="records-card">
-    <form class="filters" id="sales-filter-form" method="GET" action="{{ route('admin.sales.index') }}">
-        <div class="filter-group"><label for="sale-search">Search sale or customer</label><input id="sale-search" name="search" value="{{ $filters['search'] }}" placeholder="Sale ID or customer"></div>
-        <div class="filter-group"><label for="sale-status">Payment Status</label><select id="sale-status" name="status"><option value="">All Statuses</option><option value="paid" @selected($filters['status'] === 'paid')>Paid</option><option value="pending" @selected($filters['status'] === 'pending')>Pending</option><option value="unpaid" @selected($filters['status'] === 'unpaid')>Unpaid</option></select></div>
-        <button class="filter-button" type="submit">Filter Records</button>
+    <form class="filters" id="sales-filter-form" onsubmit="return false;">
+        <div class="filter-group"><label for="sale-search">Search sale or customer</label><input id="sale-search" name="search" placeholder="Sale ID or customer"></div>
+        <div class="filter-group"><label for="sale-status">Payment Status</label>
+            <select id="sale-status" name="status">
+                <option value="">All Statuses</option>
+                <option value="paid">Paid</option>
+                <option value="pending">Pending</option>
+                <option value="unpaid">Unpaid</option>
+            </select>
+        </div>
+        <button class="filter-button" type="submit" id="filter-btn">Filter Records</button>
     </form>
-    <table class="records-table"><thead><tr><th>Sale ID</th><th>Customer</th><th>Date</th><th class="amount">Total</th><th>Payment Status</th><th>Actions</th></tr></thead><tbody>
-    @forelse($sales as $sale)<tr class="sale-row" data-sale-id="{{ $sale->sale_id }}" data-customer="{{ strtolower($sale->customer_name) }}" data-status="{{ $sale->payment_status }}"><td><a class="sale-id" href="{{ route('admin.sales.show', $sale->sale_id) }}">#{{ $sale->sale_id }}</a></td><td><div>{{ $sale->customer_name }}</div><div class="muted">{{ $sale->customer_id ? 'ID: ' . $sale->customer_id : 'N/A' }}</div></td><td><div>{{ \Carbon\Carbon::parse($sale->date)->format('M d, Y') }}</div><div class="muted">{{ $sale->time }}</div></td><td class="amount">${{ number_format($sale->total, 2) }}</td><td><span class="status {{ $sale->payment_status }}">{{ ucfirst($sale->payment_status) }}</span></td><td><a class="view-button" href="{{ route('admin.sales.show', $sale->sale_id) }}">View</a></td></tr>@empty<tr><td class="empty" colspan="6">No sales records match your filters.</td></tr>@endforelse
-    <tr class="client-no-results" id="sales-no-results"><td colspan="6">No sales records match your filters.</td></tr>
-    </tbody></table>
-    <div class="table-footer"><span>Showing {{ $pagination['from'] }} to {{ $pagination['to'] }} of {{ $pagination['total'] }} entries</span><div class="pages"><span>‹</span><span class="selected">1</span><span>2</span><span>3</span><span>›</span></div></div>
+    <table class="records-table">
+        <thead><tr><th>Sale ID</th><th>Customer</th><th>Date</th><th class="amount">Total</th><th>Payment Status</th><th>Actions</th></tr></thead>
+        <tbody id="sales-table-body">
+            <tr><td class="empty" colspan="6">Loading...</td></tr>
+        </tbody>
+    </table>
+    <div class="table-footer">
+        <span id="sales-showing-text"></span>
+        <div class="pages" id="sales-pagination"></div>
+    </div>
 </section>
+@stop
+
+@section('page-js')
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-    const form = document.getElementById('sales-filter-form');
-    const searchInput = document.getElementById('sale-search');
-    const statusSelect = document.getElementById('sale-status');
-    const rows = document.querySelectorAll('.sale-row');
-    const noResults = document.getElementById('sales-no-results');
-    const normalize = (value) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const filterRows = () => {
-        const term = searchInput.value.trim().toLowerCase();
-        const saleTerm = normalize(term);
-        let visible = 0;
-        rows.forEach(function (row) {
-            const matchesSearch = normalize(row.dataset.saleId).includes(saleTerm) || row.dataset.customer.includes(term);
-            const matchesStatus = statusSelect.value === '' || row.dataset.status === statusSelect.value;
-            row.classList.toggle('is-filtered-out', !(matchesSearch && matchesStatus));
-            if (matchesSearch && matchesStatus) visible++;
+(function () {
+    const perPage = 5;
+    let currentSearch = '';
+    let currentStatus = '';
+    let searchDebounce;
+
+    function authToken() {
+        return localStorage.getItem('auth_token');
+    }
+
+    function formatDate(dateStr) {
+        const d = new Date(dateStr);
+        const dateLabel = d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+        const timeLabel = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+        return { dateLabel, timeLabel };
+    }
+
+    function renderRows(sales) {
+        const tbody = document.getElementById('sales-table-body');
+
+        if (!sales.length) {
+            tbody.innerHTML = '<tr><td class="empty" colspan="6">No sales records match your filters.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = sales.map(s => {
+            const { dateLabel, timeLabel } = formatDate(s.sale_date);
+            return `
+                <tr>
+                    <td><a class="sale-id" href="/admin/sales/${s.sale_id}">#${s.display_id}</a></td>
+                    <td><div>${s.customer_name}</div><div class="muted">ID: ${s.customer_display_id}</div></td>
+                    <td><div>${dateLabel}</div><div class="muted">${timeLabel}</div></td>
+                    <td class="amount">$${parseFloat(s.total_price).toFixed(2)}</td>
+                    <td><span class="status ${s.payment_status}">${s.payment_status.charAt(0).toUpperCase() + s.payment_status.slice(1)}</span></td>
+                    <td><a class="view-button" href="/admin/sales/${s.sale_id}">View</a></td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function renderPagination(meta) {
+        document.getElementById('sales-showing-text').textContent =
+            meta.total === 0
+                ? 'Showing 0 of 0 entries'
+                : `Showing ${((meta.current_page - 1) * meta.per_page) + 1} to ${Math.min(meta.current_page * meta.per_page, meta.total)} of ${meta.total} entries`;
+
+        const pag = document.getElementById('sales-pagination');
+        let html = `<button class="page-btn" ${meta.current_page <= 1 ? 'disabled' : ''} data-page="${meta.current_page - 1}">&lsaquo;</button>`;
+
+        for (let p = 1; p <= meta.last_page; p++) {
+            html += `<button class="page-btn ${p === meta.current_page ? 'active' : ''}" data-page="${p}">${p}</button>`;
+        }
+
+        html += `<button class="page-btn" ${meta.current_page >= meta.last_page ? 'disabled' : ''} data-page="${meta.current_page + 1}">&rsaquo;</button>`;
+        pag.innerHTML = html;
+
+        pag.querySelectorAll('.page-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const page = parseInt(btn.dataset.page, 10);
+                if (page >= 1 && page <= meta.last_page) {
+                    loadSales(page);
+                }
+            });
         });
-        noResults.classList.toggle('is-visible', rows.length > 0 && visible === 0);
-    };
-    searchInput.addEventListener('input', filterRows);
-    statusSelect.addEventListener('change', filterRows);
-    form.addEventListener('submit', function (event) { event.preventDefault(); filterRows(); });
-});
+    }
+
+    async function loadSales(page = 1) {
+        try {
+            const params = new URLSearchParams({ per_page: perPage, page: page });
+            if (currentSearch) params.set('search', currentSearch);
+            if (currentStatus) params.set('payment_status', currentStatus);
+
+            const res = await fetch(`/api/shop/sales?${params.toString()}`, {
+                headers: {
+                    'Authorization': `Bearer ${authToken()}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (res.status === 401) {
+                window.location.href = '/admin/login';
+                return;
+            }
+
+            const json = await res.json();
+            renderRows(json.data);
+            renderPagination(json.meta);
+        } catch (err) {
+            document.getElementById('sales-table-body').innerHTML =
+                '<tr><td class="empty" colspan="6">Failed to load sales records.</td></tr>';
+            console.error(err);
+        }
+    }
+
+    document.getElementById('sale-search').addEventListener('input', (e) => {
+        clearTimeout(searchDebounce);
+        searchDebounce = setTimeout(() => {
+            currentSearch = e.target.value.trim();
+            loadSales(1);
+        }, 350);
+    });
+
+    document.getElementById('sale-status').addEventListener('change', (e) => {
+        currentStatus = e.target.value;
+        loadSales(1);
+    });
+
+    // Filter Records button still works too, e.g. after picking a status without typing
+    document.getElementById('filter-btn').addEventListener('click', () => {
+        clearTimeout(searchDebounce);
+        currentSearch = document.getElementById('sale-search').value.trim();
+        currentStatus = document.getElementById('sale-status').value;
+        loadSales(1);
+    });
+
+    loadSales();
+})();
 </script>
-@endsection
+@stop

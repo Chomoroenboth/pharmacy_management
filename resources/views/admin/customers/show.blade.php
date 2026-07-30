@@ -83,19 +83,17 @@
     </div>
 
     <div class="detail-layout">
-        {{-- Left: identity + contact --}}
         <div class="card side-card">
-            <div class="cust-name-lg">{{ $customer->full_name }}</div>
-            <div class="cust-id-sm">ID: #{{ $customer->display_id }}</div>
+            <div class="cust-name-lg" id="cust-name">Loading...</div>
+            <div class="cust-id-sm" id="cust-id-sm">ID: —</div>
 
             <div class="side-divider"></div>
             <div class="side-label">CONTACT INFORMATION</div>
-            <div class="side-row">&#128222; {{ $customer->phone }}</div>
-            <div class="side-row">&#9993; {{ $customer->email }}</div>
+            <div class="side-row">&#128222; <span id="cust-phone">—</span></div>
+            <div class="side-row">&#9993; <span id="cust-email">—</span></div>
         </div>
 
         <div class="main-col">
-            {{-- Active Prescriptions --}}
             <div class="card" style="padding:0; overflow:hidden;">
                 <div style="padding: 20px 24px 12px;">
                     <span class="card-title" style="margin-bottom:0;">Active Prescriptions</span>
@@ -104,19 +102,12 @@
                     <thead>
                         <tr><th>MEDICATION</th><th>DOSAGE</th><th>STATUS</th></tr>
                     </thead>
-                    <tbody>
-                        @foreach($prescriptions as $rx)
-                        <tr>
-                            <td>{{ $rx->medicine_name }}</td>
-                            <td>{{ $rx->dosage }}</td>
-                            <td><span class="status-pill status-{{ $rx->status }}">{{ ucfirst($rx->status) }}</span></td>
-                        </tr>
-                        @endforeach
+                    <tbody id="rx-body">
+                        <tr class="loading-row"><td colspan="3">Loading...</td></tr>
                     </tbody>
                 </table>
             </div>
 
-            {{-- Purchase History --}}
             <div class="card" style="padding:0; overflow:hidden;">
                 <div style="padding: 20px 24px 12px;">
                     <span class="card-title" style="margin-bottom:0;">Purchase History</span>
@@ -125,15 +116,8 @@
                     <thead>
                         <tr><th>DATE</th><th>ITEMS</th><th>TOTAL</th><th>STATUS</th></tr>
                     </thead>
-                    <tbody>
-                        @foreach($purchases as $p)
-                        <tr>
-                            <td>{{ $p->date }}</td>
-                            <td>{{ $p->items }}</td>
-                            <td>${{ number_format($p->total, 2) }}</td>
-                            <td><span class="status-pill status-paid">{{ $p->status }}</span></td>
-                        </tr>
-                        @endforeach
+                    <tbody id="hist-body">
+                        <tr class="loading-row"><td colspan="4">Loading...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -150,26 +134,19 @@
             <form onsubmit="return saveEdit(event)">
                 <div class="modal-section-title">Personal Information</div>
                 <div class="form-row">
-                    <div class="form-field"><label>FIRST NAME</label><input type="text" value="{{ $customer->first_name }}"></div>
-                    <div class="form-field"><label>LAST NAME</label><input type="text" value="{{ $customer->last_name }}"></div>
+                    <div class="form-field"><label>FIRST NAME</label><input type="text" id="edit_first_name"></div>
+                    <div class="form-field"><label>LAST NAME</label><input type="text" id="edit_last_name"></div>
                 </div>
                 <div class="form-row">
-                    <div class="form-field"><label>PHONE NUMBER</label><input type="text" value="{{ $customer->phone }}"></div>
-                    <div class="form-field"><label>EMAIL ADDRESS</label><input type="email" value="{{ $customer->email }}"></div>
+                    <div class="form-field"><label>PHONE NUMBER</label><input type="text" id="edit_phone"></div>
+                    <div class="form-field"><label>EMAIL ADDRESS</label><input type="email" id="edit_email"></div>
                 </div>
                 <div class="form-row">
-                    <div class="form-field"><label>DATE OF BIRTH</label><input type="text" value="{{ $customer->dob_edit }}"></div>
+                    <div class="form-field"><label>DATE OF BIRTH</label><input type="text" id="edit_dob"></div>
                 </div>
 
                 <div class="modal-section-title">Allergies &amp; Alerts</div>
-                <div class="allergy-edit-row" id="editAllergyList">
-                    @foreach($allergies as $allergy)
-                        <span class="badge-removable badge-info">
-                            {{ $allergy->allergy_name }}
-                            <button type="button" onclick="this.parentElement.remove()">&times;</button>
-                        </span>
-                    @endforeach
-                </div>
+                <div class="allergy-edit-row" id="editAllergyList"></div>
                 <div class="add-allergy-row">
                     <input type="text" id="newAllergyInput" placeholder="Add new allergy...">
                     <button type="button" class="btn-add-allergy" onclick="addAllergyEdit()">Add</button>
@@ -186,7 +163,6 @@
         </div>
     </div>
 
-    {{-- Delete Customer modal --}}
     <div class="modal-overlay" id="deleteModal">
         <div class="modal-box narrow">
             <div class="modal-header">
@@ -204,35 +180,172 @@
         </div>
     </div>
 
-    <script>
-        function openModal(id) { document.getElementById(id).classList.add('open'); }
-        function closeModal(id) { document.getElementById(id).classList.remove('open'); }
-        function openEditModal(e) { e.preventDefault(); openModal('editModal'); }
+@stop
 
-        function addAllergyEdit() {
-            const input = document.getElementById('newAllergyInput');
-            const name = input.value.trim();
-            if (!name) return;
-            const badge = document.createElement('span');
-            badge.className = 'badge-removable badge-info';
-            badge.innerHTML = name + ' <button type="button" onclick="this.parentElement.remove()">&times;</button>';
-            document.getElementById('editAllergyList').appendChild(badge);
-            input.value = '';
+@section('page-js')
+<script>
+(function () {
+    const customerId = {{ $customerId }};
+
+    function authToken() {
+        return localStorage.getItem('auth_token');
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '—';
+        const d = new Date(dateStr);
+        return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+    }
+
+    async function loadCustomer() {
+        try {
+            const res = await fetch(`/api/staff/customers/${customerId}`, {
+                headers: {
+                    'Authorization': `Bearer ${authToken()}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (res.status === 401) {
+                window.location.href = '/admin/login';
+                return;
+            }
+
+            const json = await res.json();
+            const { customer, allergies, prescriptions, purchases } = json.data;
+
+            document.getElementById('cust-name').textContent = customer.full_name;
+            document.getElementById('cust-id-sm').textContent = `ID: #${customer.display_id}`;
+            document.getElementById('cust-phone').textContent = customer.phone_number ?? '—';
+            document.getElementById('cust-email').textContent = customer.email;
+
+            document.getElementById('edit_first_name').value = customer.first_name ?? '';
+            document.getElementById('edit_last_name').value = customer.last_name ?? '';
+            document.getElementById('edit_phone').value = customer.phone_number ?? '';
+            document.getElementById('edit_email').value = customer.email ?? '';
+            document.getElementById('edit_dob').value = customer.date_of_birth ?? '';
+
+            renderAllergies(allergies);
+            renderPrescriptions(prescriptions);
+            renderPurchases(purchases);
+        } catch (err) {
+            console.error(err);
         }
+    }
 
-        function saveEdit(e) {
-            e.preventDefault();
-            // Fake data only — no backend save yet.
-            alert('Customer details saved (placeholder — not yet connected to database).');
+    function renderAllergies(allergies) {
+        const list = document.getElementById('editAllergyList');
+        list.innerHTML = allergies.map(a => `
+            <span class="badge-removable badge-info">
+                ${a.allergy_name}
+                <button type="button" onclick="this.parentElement.remove()">&times;</button>
+            </span>
+        `).join('');
+    }
+
+    function renderPrescriptions(prescriptions) {
+        const tbody = document.getElementById('rx-body');
+        if (!prescriptions.length) {
+            tbody.innerHTML = '<tr class="empty-row"><td colspan="3">No prescriptions.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = prescriptions.map(rx => `
+            <tr>
+                <td>${rx.medicine_name}</td>
+                <td>${rx.dosage ?? '—'}</td>
+                <td><span class="status-pill status-${rx.status}">${rx.status.charAt(0).toUpperCase() + rx.status.slice(1)}</span></td>
+            </tr>
+        `).join('');
+    }
+
+    function renderPurchases(purchases) {
+        const tbody = document.getElementById('hist-body');
+        if (!purchases.length) {
+            tbody.innerHTML = '<tr class="empty-row"><td colspan="4">No purchase history.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = purchases.map(p => `
+            <tr>
+                <td>${formatDate(p.sale_date)}</td>
+                <td>${p.items || '—'}</td>
+                <td>$${Number(p.total_price).toFixed(2)}</td>
+                <td><span class="status-pill status-${p.payment_status === 'paid' ? 'paid' : 'expired'}">${p.payment_status.charAt(0).toUpperCase() + p.payment_status.slice(1)}</span></td>
+            </tr>
+        `).join('');
+    }
+
+    window.openModal = function (id) { document.getElementById(id).classList.add('open'); };
+    window.closeModal = function (id) { document.getElementById(id).classList.remove('open'); };
+    window.openEditModal = function (e) { e.preventDefault(); openModal('editModal'); };
+
+    window.addAllergyEdit = function () {
+        const input = document.getElementById('newAllergyInput');
+        const name = input.value.trim();
+        if (!name) return;
+        const badge = document.createElement('span');
+        badge.className = 'badge-removable badge-info';
+        badge.innerHTML = name + ' <button type="button" onclick="this.parentElement.remove()">&times;</button>';
+        document.getElementById('editAllergyList').appendChild(badge);
+        input.value = '';
+    };
+
+    window.saveEdit = async function (e) {
+        e.preventDefault();
+        try {
+            const res = await fetch(`/api/staff/customers/${customerId}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${authToken()}`,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    first_name: document.getElementById('edit_first_name').value,
+                    last_name: document.getElementById('edit_last_name').value,
+                    email: document.getElementById('edit_email').value,
+                    phone_number: document.getElementById('edit_phone').value,
+                    date_of_birth: document.getElementById('edit_dob').value
+                })
+            });
+
+            if (!res.ok) {
+                const err = await res.json();
+                alert('Failed to save: ' + (err.message || 'Unknown error'));
+                return false;
+            }
+
             closeModal('editModal');
-            return false;
+            loadCustomer();
+        } catch (err) {
+            alert('Failed to save changes.');
+            console.error(err);
         }
+        return false;
+    };
 
-        function confirmDelete() {
-            // Fake data only — no backend delete yet.
-            alert('Customer deleted (placeholder — not yet connected to database).');
+    window.confirmDelete = async function () {
+        try {
+            const res = await fetch(`/api/staff/customers/${customerId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${authToken()}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (!res.ok) {
+                alert('Failed to delete customer.');
+                return;
+            }
+
             window.location.href = "{{ route('admin.customers') }}";
+        } catch (err) {
+            alert('Failed to delete customer.');
+            console.error(err);
         }
-    </script>
+    };
 
+    loadCustomer();
+})();
+</script>
 @stop

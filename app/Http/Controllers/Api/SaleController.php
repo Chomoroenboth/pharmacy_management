@@ -64,7 +64,7 @@ class SaleController extends Controller
         ]);
     }
 
-    // GET /shop/sales?start_date=&end_date=&payment_status=&page=&per_page=
+    // GET /shop/sales?search=&start_date=&end_date=&payment_status=&page=&per_page=
     // Customers see only their own sales. Staff see all sales with filters + pagination.
     public function index(Request $request)
     {
@@ -81,6 +81,7 @@ class SaleController extends Controller
                 'sa.sale_id',
                 DB::raw("CONCAT('SL-', YEAR(sa.sale_date), '-', LPAD(sa.sale_id, 4, '0')) as display_id"),
                 DB::raw("CONCAT(u.first_name, ' ', u.last_name) as customer_name"),
+                DB::raw("CONCAT('C-', LPAD(u.user_id, 4, '0')) as customer_display_id"),
                 'sa.user_id',
                 'sa.sale_date',
                 'sa.total_price',
@@ -112,6 +113,14 @@ class SaleController extends Controller
             } else {
                 $query->where('p.status', $status);
             }
+        }
+
+        if ($request->filled('search')) {
+            $term = $request->query('search');
+            $query->where(function ($q) use ($term) {
+                $q->where(DB::raw("CONCAT('SL-', YEAR(sa.sale_date), '-', LPAD(sa.sale_id, 4, '0'))"), 'LIKE', "%{$term}%")
+                  ->orWhere(DB::raw("CONCAT(u.first_name, ' ', u.last_name)"), 'LIKE', "%{$term}%");
+            });
         }
 
         $query->orderByDesc('sa.sale_date');

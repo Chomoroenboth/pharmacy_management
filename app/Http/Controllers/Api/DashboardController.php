@@ -24,16 +24,16 @@ class DashboardController extends Controller
             ->whereDate('sale_date', now()->toDateString())
             ->sum('total_price');
 
-        $lowStock = DB::select("
-            SELECT m.medicine_id, m.medicine_name,
-              COALESCE(SUM(CASE WHEN s.txn_type='in' THEN s.quantity WHEN s.txn_type='out' THEN -s.quantity ELSE s.quantity END), 0) AS current_stock,
-              COALESCE(MAX(s.reorder_level), 10) AS reorder_level
-            FROM medicines m LEFT JOIN stocks s ON s.medicine_id = m.medicine_id
-            GROUP BY m.medicine_id, m.medicine_name
-            HAVING current_stock <= reorder_level
-            ORDER BY current_stock ASC
-            LIMIT 5
-        ");
+            $lowStock = DB::select("
+        SELECT m.medicine_id, m.medicine_name, m.category,
+        COALESCE(SUM(CASE WHEN s.txn_type='in' THEN s.quantity WHEN s.txn_type='out' THEN -s.quantity ELSE s.quantity END), 0) AS current_stock,
+        COALESCE(MAX(s.reorder_level), 10) AS reorder_level
+        FROM medicines m LEFT JOIN stocks s ON s.medicine_id = m.medicine_id
+        GROUP BY m.medicine_id, m.medicine_name, m.category
+        HAVING current_stock <= reorder_level
+        ORDER BY current_stock ASC
+        LIMIT 5
+    ");
 
         $lowStockCount = DB::select("
             SELECT COUNT(*) as cnt FROM (

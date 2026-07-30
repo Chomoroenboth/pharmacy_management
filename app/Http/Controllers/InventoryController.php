@@ -27,21 +27,9 @@ class InventoryController extends Controller
     ];
 
     public function index()
-    {
-        $medicines = collect($this->medicines)->map(fn($m, $id) => (object) [
-            'id' => $id,
-            'code' => $m['code'],
-            'name' => $m['name'],
-            'category' => $m['category'],
-            'brand' => $m['brand'],
-            'price' => $m['price'],
-            'stock' => $m['stock'],
-        ])->values();
-
-        $pagination = ['from' => 1, 'to' => 5, 'total' => 124];
-
-        return view('admin.inventory.index', compact('medicines', 'pagination'));
-    }
+{
+    return view('admin.inventory.index');
+}
 
     public function create()
     {
@@ -61,31 +49,11 @@ class InventoryController extends Controller
         return redirect()->route('admin.inventory')->with('message', 'Medicine added (not yet connected to database)');
     }
 
-    public function show($id)
-    {
-        $m = $this->medicines[$id] ?? $this->medicines[1];
-
-        $medicine = (object) [
-            'id' => $id,
-            'code' => $m['code'],
-            'name' => $m['name'],
-            'category' => $m['category'],
-            'brand' => $m['brand'],
-            'price' => $m['price'],
-            'requires_prescription' => $m['requires_prescription'],
-            'stock' => $m['stock'],
-        ];
-
-        $priceHistory = collect($m['price_history'])->map(fn($p) => (object) [
-            'date' => $p['date'],
-            'old_price' => $p['old'],
-            'new_price' => $p['new'],
-            'diff' => $p['new'] - $p['old'],
-        ]);
-
-        return view('admin.inventory.show', compact('medicine', 'priceHistory'));
-    }
-
+    // GET /inventory/medicines/{id}
+            public function show($id)
+            {
+                return view('admin.inventory.show', ['medicineId' => $id]);
+            }
     public function update(Request $request, $id)
     {
         $request->validate([

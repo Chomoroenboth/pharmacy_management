@@ -30,79 +30,56 @@ class PrescriptionController extends Controller
 
     // GET /prescriptions
     // Staff: see all prescriptions. Customer: see only their own.
-    public function index(Request $request)
-    {
-        $authUser = $request->user();
+    // GET /prescriptions
+// Staff: see all prescriptions (paginated, joined with customer name + generated display code).
+// Customer: see only their own.
+public function index(Request $request)
+{
+    $authUser = $request->user();
 
-        if (!$authUser) {
-            return response()->json(['message' => 'Unauthenticated'], 401);
-        }
-
-        $query = DB::table('prescriptions');
-
-        if (!($authUser instanceof Staff)) {
-            $userId = $authUser->user_id ?? $authUser->id;
-            $query->where('user_id', $userId);
-        }
-
-        $prescriptions = $query->orderByDesc('issue_date')->get();
-
-        return response()->json([
-            'status' => 'success',
-            'data'   => $prescriptions
-        ]);
+    if (!$authUser) {
+        return response()->json(['message' => 'Unauthenticated'], 401);
     }
 
-    // GET /prescriptions/{id}
-    public function show(Request $request, $id)
-    {
-        $authUser = $request->user();
+    $query = DB::table('prescriptions as pr')
+        ->join('users as u', 'pr.user_id', '=', 'u.user_id')
+        ->select(
+            'pr.prescription_id',
+            DB::raw("CONCAT('RX-', LPAD(pr.prescription_id, 4, '0')) as display_code"),
+            DB::raw("CONCAT(u.first_name, ' ', u.last_name) as customer_name"),
+            'pr.user_id',
+            DB::raw("CONCAT('Dr. ', pr.doctor_first_name, ' ', COALESCE(pr.doctor_last_name, '')) as doctor_name"),
+            'pr.doctor_first_name',
+            'pr.doctor_last_name',
+            'pr.doctor_license',
+            'pr.doctor_clinic',
+            'pr.issue_date',
+            'pr.expiry_date',
+            'pr.status',
+            'pr.notes'
+        );
 
-        if (!$authUser) {
-            return response()->json(['message' => 'Unauthenticated'], 401);
-        }
-
-        $prescription = DB::table('prescriptions')->where('prescription_id', $id)->first();
-
-        if (!$prescription) {
-            return response()->json([
-                'status'  => 'error',
-                'message' => 'Prescription not found.'
-            ], 404);
-        }
-
-        // Customers may only view their own prescription
-        if (!($authUser instanceof Staff)) {
-            $userId = $authUser->user_id ?? $authUser->id;
-            if ($prescription->user_id != $userId) {
-                return response()->json([
-                    'status'  => 'error',
-                    'message' => 'Prescription not found.'
-                ], 404);
-            }
-        }
-
-        $details = DB::table('prescription_details')
-            ->join('medicines', 'prescription_details.medicine_id', '=', 'medicines.medicine_id')
-            ->where('prescription_details.prescription_id', $id)
-            ->select(
-                'prescription_details.detail_id',
-                'prescription_details.medicine_id',
-                'medicines.medicine_name',
-                'prescription_details.dosage',
-                'prescription_details.quantity',
-                'prescription_details.instructions'
-            )
-            ->get();
-
-        return response()->json([
-            'status' => 'success',
-            'data'   => [
-                'prescription' => $prescription,
-                'medicines'    => $details
-            ]
-        ]);
+    if (!($authUser instanceof Staff)) {
+        $userId = $authUser->user_id ?? $authUser->id;
+        $query->where('pr.user_id', $userId);
     }
+
+    $query->orderByDesc('pr.issue_date');
+
+    $perPage = $request->input('per_page', 5);
+    $prescriptions = $query->paginate($perPage);
+
+    return response()->json([
+        'status' => 'success',
+        'data'   => $prescriptions->items(),
+        'meta'   => [
+            'current_page' => $prescriptions->currentPage(),
+            'last_page'    => $prescriptions->lastPage(),
+            'per_page'     => $prescriptions->perPage(),
+            'total'        => $prescriptions->total(),
+        ]
+    ]);
+}
 
     // POST /prescriptions  (staff only, creates on behalf of a customer)
     public function store(Request $request)
@@ -150,7 +127,75 @@ class PrescriptionController extends Controller
             'data'    => ['prescription_id' => $prescriptionId]
         ], 201);
     }
+    // GET /prescriptions/{id}
+// Staff: can view any prescription. Customer: only their own.
+    public function show(Request $request, $id)
+    {
+        $authUser = $request->user();
 
+        if (!$authUser) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $prescription = DB::table('prescriptions as pr')
+            ->join('users as u', 'pr.user_id', '=', 'u.user_id')
+            ->select(
+                'pr.prescription_id',
+                DB::raw("CONCAT('RX-', LPAD(pr.prescription_id, 4, '0')) as display_code"),
+                DB::raw("CONCAT(u.first_name, ' ', u.last_name) as customer_name"),
+                'pr.user_id',
+                DB::raw("CONCAT('Dr. ', pr.doctor_first_name, ' ', COALESCE(pr.doctor_last_name, '')) as doctor_name"),
+                'pr.doctor_first_name',
+                'pr.doctor_last_name',
+                'pr.doctor_license',
+                'pr.doctor_clinic',
+                'pr.issue_date',
+                'pr.expiry_date',
+                'pr.status',
+                'pr.notes'
+            )
+            ->where('pr.prescription_id', $id)
+            ->first();
+
+        if (!$prescription) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Prescription not found.'
+            ], 404);
+        }
+
+        // Customers may only view their own prescription
+        if (!($authUser instanceof Staff)) {
+            $userId = $authUser->user_id ?? $authUser->id;
+            if ($prescription->user_id != $userId) {
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => 'Forbidden.'
+                ], 403);
+            }
+        }
+
+        $medicines = DB::table('prescription_details as pd')
+            ->join('medicines as m', 'pd.medicine_id', '=', 'm.medicine_id')
+            ->select(
+                'pd.detail_id',
+                'pd.medicine_id',
+                'm.medicine_name',
+                'pd.dosage',
+                'pd.quantity',
+                'pd.instructions'
+            )
+            ->where('pd.prescription_id', $id)
+            ->get();
+
+        return response()->json([
+            'status' => 'success',
+            'data'   => [
+                'prescription' => $prescription,
+                'medicines'    => $medicines,
+            ]
+        ]);
+    }
     // PUT /prescriptions/{id}  (staff only, edits core prescription fields)
     public function update(Request $request, $id)
     {

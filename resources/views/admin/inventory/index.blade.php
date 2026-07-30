@@ -39,6 +39,7 @@
     .pagination { display: flex; gap: 6px; }
     .page-btn { min-width: 32px; height: 32px; border: 1px solid #e1e2e4; border-radius: 6px; background: #fff; color: #3c4a42; font-size: 13px; cursor: pointer; }
     .page-btn.active { background: #10b981; border-color: #10b981; color: #fff; font-weight: 600; }
+    .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>
 @endsection
 
@@ -56,8 +57,10 @@
             <p>Manage medicine stock and categories</p>
         </div>
         <div class="header-controls">
-            <input type="text" class="search-input" placeholder="Search medicine...">
-            <select class="category-select"><option>All Categories</option></select>
+            <input type="text" id="searchInput" class="search-input" placeholder="Search medicine...">
+            <select id="categorySelect" class="category-select">
+                <option value="">All Categories</option>
+            </select>
             <a href="{{ route('admin.inventory.create') }}" class="btn-primary">+ Add Medicine</a>
         </div>
     </div>
@@ -75,35 +78,141 @@
                     <th>View Medicine Details</th>
                 </tr>
             </thead>
-            <tbody>
-                @foreach($medicines as $m)
-                <tr>
-                    <td>{{ $m->code }}</td>
-                    <td class="med-name">{{ $m->name }}</td>
-                    <td>{{ $m->category }}</td>
-                    <td>{{ $m->brand }}</td>
-                    <td>${{ number_format($m->price, 2) }}</td>
-                    <td>
-                        <span class="stock-badge {{ $m->stock > 20 ? 'stock-high' : ($m->stock > 10 ? 'stock-medium' : 'stock-low') }}">
-                            {{ $m->stock }} Units
-                        </span>
-                    </td>
-                    <td><a href="{{ route('admin.inventory.show', $m->id) }}" class="view-link">&#128065;</a></td>
-                </tr>
-                @endforeach
+            <tbody id="inv-table-body">
+                <tr><td colspan="7" style="text-align:center; padding:24px;">Loading...</td></tr>
             </tbody>
         </table>
 
         <div class="table-footer">
-            <div>Showing {{ $pagination['from'] }} to {{ $pagination['to'] }} of {{ $pagination['total'] }} entries</div>
-            <div class="pagination">
-                <button class="page-btn">Previous</button>
-                <button class="page-btn active">1</button>
-                <button class="page-btn">2</button>
-                <button class="page-btn">3</button>
-                <button class="page-btn">Next</button>
-            </div>
+            <div id="inv-showing-text"></div>
+            <div class="pagination" id="inv-pagination"></div>
         </div>
     </div>
 
+@stop
+
+@section('page-js')
+<script>
+(function () {
+    const perPage = 5;
+    let currentSearch = '';
+    let currentCategory = '';
+    let searchDebounce;
+    const seenCategories = new Set();
+
+    function authToken() {
+        return localStorage.getItem('auth_token');
+    }
+
+    function stockClass(stock) {
+        if (stock > 20) return 'stock-high';
+        if (stock > 10) return 'stock-medium';
+        return 'stock-low';
+    }
+
+    function renderRows(medicines) {
+        const tbody = document.getElementById('inv-table-body');
+
+        if (!medicines.length) {
+            tbody.innerHTML = '<tr class="empty-row"><td colspan="7" style="text-align:center; padding:24px;">No medicines found.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = medicines.map(m => `
+            <tr>
+                <td>${m.display_id}</td>
+                <td class="med-name">${m.medicine_name}</td>
+                <td>${m.category ?? '-'}</td>
+                <td>${m.brand ?? '-'}</td>
+                <td>$${parseFloat(m.price).toFixed(2)}</td>
+                <td><span class="stock-badge ${stockClass(m.current_stock)}">${m.current_stock} Units</span></td>
+                <td><a href="/admin/inventory/${m.medicine_id}" class="view-link">&#128065;</a></td>
+            </tr>
+        `).join('');
+
+        medicines.forEach(m => { if (m.category) seenCategories.add(m.category); });
+        refreshCategoryOptions();
+    }
+
+    function refreshCategoryOptions() {
+        const select = document.getElementById('categorySelect');
+        const current = select.value;
+        select.innerHTML = '<option value="">All Categories</option>' +
+            [...seenCategories].sort().map(c => `<option value="${c}">${c}</option>`).join('');
+        select.value = current;
+    }
+
+    function renderPagination(meta) {
+        document.getElementById('inv-showing-text').textContent =
+            meta.total === 0
+                ? 'Showing 0 of 0 entries'
+                : `Showing ${((meta.current_page - 1) * meta.per_page) + 1} to ${Math.min(meta.current_page * meta.per_page, meta.total)} of ${meta.total} entries`;
+
+        const pag = document.getElementById('inv-pagination');
+        let html = `<button class="page-btn" ${meta.current_page <= 1 ? 'disabled' : ''} data-page="${meta.current_page - 1}">Previous</button>`;
+
+        for (let p = 1; p <= meta.last_page; p++) {
+            html += `<button class="page-btn ${p === meta.current_page ? 'active' : ''}" data-page="${p}">${p}</button>`;
+        }
+
+        html += `<button class="page-btn" ${meta.current_page >= meta.last_page ? 'disabled' : ''} data-page="${meta.current_page + 1}">Next</button>`;
+        pag.innerHTML = html;
+
+        pag.querySelectorAll('.page-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const page = parseInt(btn.dataset.page, 10);
+                if (page >= 1 && page <= meta.last_page) {
+                    loadInventory(page);
+                }
+            });
+        });
+    }
+
+    async function loadInventory(page = 1) {
+        try {
+            const params = new URLSearchParams({
+                per_page: perPage,
+                page: page,
+            });
+            if (currentSearch) params.set('search', currentSearch);
+            if (currentCategory) params.set('category', currentCategory);
+
+            const res = await fetch(`/api/inventory/medicines?${params.toString()}`, {
+                headers: {
+                    'Authorization': `Bearer ${authToken()}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (res.status === 401) {
+                window.location.href = '/admin/login';
+                return;
+            }
+
+            const json = await res.json();
+            renderRows(json.data);
+            renderPagination(json.meta);
+        } catch (err) {
+            document.getElementById('inv-table-body').innerHTML =
+                '<tr class="empty-row"><td colspan="7" style="text-align:center; padding:24px; color:#930a0a;">Failed to load inventory.</td></tr>';
+            console.error(err);
+        }
+    }
+
+    document.getElementById('searchInput').addEventListener('input', (e) => {
+        clearTimeout(searchDebounce);
+        searchDebounce = setTimeout(() => {
+            currentSearch = e.target.value;
+            loadInventory(1);
+        }, 350);
+    });
+
+    document.getElementById('categorySelect').addEventListener('change', (e) => {
+        currentCategory = e.target.value;
+        loadInventory(1);
+    });
+
+    loadInventory();
+})();
+</script>
 @stop

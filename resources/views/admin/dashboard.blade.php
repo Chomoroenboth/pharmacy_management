@@ -58,11 +58,13 @@
         padding: 4px 10px; border-radius: 20px;
         font-size: 12px; font-weight: 500;
     }
-    .badge-paid { background: #d1fae5; color: #047857; }
-    .badge-unpaid { background: #fee2e2; color: #b91c1c; }
+    .badge-completed { background: #d1fae5; color: #047857; }
+    .badge-pending { background: #fee2e2; color: #b91c1c; }
 
     .stock-low { color: #b91c1c; font-weight: 600; font-size: 14px; }
     .stock-medium { color: #b45309; font-weight: 600; font-size: 14px; }
+
+    .loading-row td, .empty-row td { text-align: center; padding: 32px; color: #6c7a71; }
 </style>
 @endsection
 
@@ -77,23 +79,16 @@
 
     <div class="stat-cards">
         <div class="stat-card">
-            <div class="stat-top">
-                <div class="stat-label">Total Customers</div>
-            </div>
-            <div class="stat-value">{{ number_format($totalCustomers) }}</div>
+            <div class="stat-label">Total Customers</div>
+            <div class="stat-value" id="stat-total-customers">—</div>
         </div>
         <div class="stat-card">
-            <div class="stat-top">
-                <div class="stat-label">Total Sales Today</div>
-            </div>
-            <div class="stat-value">${{ number_format($totalSalesToday) }}</div>
-            <div class="stat-trend">+{{ $salesGrowth }}% vs yesterday</div>
+            <div class="stat-label">Total Sales Today</div>
+            <div class="stat-value" id="stat-total-sales">—</div>
         </div>
         <div class="stat-card alert">
-            <div class="stat-top">
-                <div class="stat-label danger">Low Stock Alerts</div>
-            </div>
-            <div class="stat-value">{{ $lowStockCount }}</div>
+            <div class="stat-label danger">Low Stock Alerts</div>
+            <div class="stat-value" id="stat-low-stock-count">—</div>
             <div class="stat-trend danger">Requires immediate review</div>
         </div>
     </div>
@@ -113,15 +108,8 @@
                         <th>Status</th>
                     </tr>
                 </thead>
-                <tbody>
-                    @foreach($recentSales as $sale)
-                    <tr>
-                        <td>#{{ $sale->transaction_id }}</td>
-                        <td>{{ $sale->customer_name }}</td>
-                        <td>${{ number_format($sale->amount, 2) }}</td>
-                        <td><span class="badge badge-{{ strtolower($sale->status) }}">{{ ucfirst($sale->status) }}</span></td>
-                    </tr>
-                    @endforeach
+                <tbody id="recent-sales-body">
+                    <tr class="loading-row"><td colspan="4">Loading...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -137,18 +125,8 @@
                         <th>Stock</th>
                     </tr>
                 </thead>
-                <tbody>
-                    @foreach($lowStockItems as $item)
-                    <tr>
-                        <td>
-                            <div class="med-name">{{ $item->medicine_name }}</div>
-                            <div class="med-category">{{ $item->category }}</div>
-                        </td>
-                        <td class="{{ $item->quantity < 10 ? 'stock-low' : 'stock-medium' }}">
-                            {{ $item->quantity }} units
-                        </td>
-                    </tr>
-                    @endforeach
+                <tbody id="low-stock-body">
+                    <tr class="loading-row"><td colspan="2">Loading...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -156,3 +134,86 @@
     </div>
 
 @stop
+
+@section('page-js')
+<script>
+(function () {
+    function authToken() {
+        return localStorage.getItem('auth_token');
+    }
+
+    async function loadDashboard() {
+        try {
+            const res = await fetch('/api/dashboard', {
+                headers: {
+                    'Authorization': `Bearer ${authToken()}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (res.status === 401) {
+                window.location.href = '/admin/login';
+                return;
+            }
+
+            const json = await res.json();
+            const d = json.data;
+
+            document.getElementById('stat-total-customers').textContent = d.total_customers.toLocaleString();
+            document.getElementById('stat-total-sales').textContent = '$' + Number(d.total_sales_today).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.getElementById('stat-low-stock-count').textContent = d.low_stock_count;
+
+            renderRecentSales(d.recent_sales);
+            renderLowStock(d.low_stock_alerts);
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    function renderRecentSales(sales) {
+        const tbody = document.getElementById('recent-sales-body');
+
+        if (!sales.length) {
+            tbody.innerHTML = '<tr class="empty-row"><td colspan="4">No recent sales.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = sales.map(sale => {
+            const badgeClass = sale.status === 'Completed' ? 'badge-completed' : 'badge-pending';
+            return `
+                <tr>
+                    <td>#${String(sale.sale_id).padStart(4, '0')}</td>
+                    <td>${sale.customer_name}</td>
+                    <td>$${Number(sale.total_price).toFixed(2)}</td>
+                    <td><span class="badge ${badgeClass}">${sale.status}</span></td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function renderLowStock(items) {
+        const tbody = document.getElementById('low-stock-body');
+
+        if (!items.length) {
+            tbody.innerHTML = '<tr class="empty-row"><td colspan="2">No low stock items.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = items.map(item => {
+            const stockClass = item.current_stock < 10 ? 'stock-low' : 'stock-medium';
+            return `
+                <tr>
+                    <td>
+                        <div class="med-name">${item.medicine_name}</div>
+                        <div class="med-category">${item.category ?? ''}</div>
+                    </td>
+                    <td class="${stockClass}">${item.current_stock} units</td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    loadDashboard();
+})();
+</script>
+@endsection

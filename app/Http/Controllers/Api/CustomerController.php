@@ -11,39 +11,112 @@ use Illuminate\Support\Facades\Hash;
 class CustomerController extends Controller
 {
     // GET /staff/customers
-    public function index()
-    {
-        $customers = User::select('user_id', 'first_name', 'last_name', 'email', 'phone_number', 'date_of_birth', 'address')->get();
+   public function index(Request $request)
+{
+    $query = DB::table('users')
+        ->select(
+            'user_id',
+            DB::raw("CONCAT('CUS-', LPAD(user_id, 4, '0')) as display_id"),
+            DB::raw("CONCAT(first_name, ' ', COALESCE(last_name, '')) as full_name"),
+            'first_name',
+            'last_name',
+            'email',
+            'phone_number',
+            'date_of_birth',
+            'address'
+        );
 
-        return response()->json([
-            'status' => 'success',
-            'data'   => $customers
-        ]);
+    if ($request->filled('search')) {
+        $search = $request->search;
+        $query->where(function ($q) use ($search) {
+            $q->where('first_name', 'like', "%{$search}%")
+              ->orWhere('last_name', 'like', "%{$search}%")
+              ->orWhere('email', 'like', "%{$search}%");
+        });
     }
 
+    $query->orderBy('user_id');
+
+    $perPage = $request->input('per_page', 5);
+    $customers = $query->paginate($perPage);
+
+    return response()->json([
+        'status' => 'success',
+        'data'   => $customers->items(),
+        'meta'   => [
+            'current_page' => $customers->currentPage(),
+            'last_page'    => $customers->lastPage(),
+            'per_page'     => $customers->perPage(),
+            'total'        => $customers->total(),
+        ]
+    ]);
+}
     // GET /staff/customers/{id}
     public function show($id)
-    {
-        $customer = User::find($id);
+{
+    $customer = DB::table('users')
+        ->select(
+            'user_id',
+            DB::raw("CONCAT('CUS-', LPAD(user_id, 4, '0')) as display_id"),
+            'first_name',
+            'last_name',
+            DB::raw("CONCAT(first_name, ' ', COALESCE(last_name, '')) as full_name"),
+            'email',
+            'phone_number',
+            'date_of_birth',
+            'address'
+        )
+        ->where('user_id', $id)
+        ->first();
 
-        if (!$customer) {
-            return response()->json([
-                'status'  => 'error',
-                'message' => 'Customer not found.'
-            ], 404);
-        }
-
-        $allergies = DB::table('allergies')->where('user_id', $id)->get();
-
+    if (!$customer) {
         return response()->json([
-            'status' => 'success',
-            'data'   => [
-                'customer'  => $customer,
-                'allergies' => $allergies
-            ]
-        ]);
+            'status'  => 'error',
+            'message' => 'Customer not found.'
+        ], 404);
     }
 
+    $allergies = DB::table('allergies')->where('user_id', $id)->get();
+
+    $prescriptions = DB::table('prescriptions as pr')
+        ->join('prescription_details as pd', 'pd.prescription_id', '=', 'pr.prescription_id')
+        ->join('medicines as m', 'pd.medicine_id', '=', 'm.medicine_id')
+        ->where('pr.user_id', $id)
+        ->select('m.medicine_name', 'pd.dosage', 'pr.status')
+        ->orderByDesc('pr.issue_date')
+        ->get();
+
+    $purchases = DB::table('sales as sa')
+        ->leftJoin('payments as p', 'p.sale_id', '=', 'sa.sale_id')
+        ->where('sa.user_id', $id)
+        ->select(
+            'sa.sale_id',
+            'sa.sale_date',
+            'sa.total_price',
+            DB::raw("COALESCE(p.status, 'unpaid') as payment_status")
+        )
+        ->orderByDesc('sa.sale_date')
+        ->get();
+
+    foreach ($purchases as $purchase) {
+        $items = DB::table('sale_items as si')
+            ->join('medicines as m', 'si.medicine_id', '=', 'm.medicine_id')
+            ->where('si.sale_id', $purchase->sale_id)
+            ->select(DB::raw("CONCAT(m.medicine_name, ' (', si.quantity, ')') as item_str"))
+            ->pluck('item_str');
+        $purchase->items = $items->implode(', ');
+    }
+
+    return response()->json([
+        'status' => 'success',
+        'data'   => [
+            'customer'      => $customer,
+            'allergies'     => $allergies,
+            'prescriptions' => $prescriptions,
+            'purchases'     => $purchases
+        ]
+    ]);
+}
     // POST /staff/customers
     public function store(Request $request)
     {
@@ -87,8 +160,8 @@ class CustomerController extends Controller
         }
 
         $customer->update(
-            $request->only(['first_name', 'last_name', 'phone_number', 'address', 'date_of_birth'])
-        );
+    $request->only(['first_name', 'last_name', 'email', 'phone_number', 'address', 'date_of_birth'])
+);
 
         return response()->json([
             'status'  => 'success',

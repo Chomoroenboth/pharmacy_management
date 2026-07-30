@@ -108,20 +108,40 @@ public function index(Request $request)
         ]);
     }
 
-    // GET /inventory/medicines/{id}
-    public function show($id)
-    {
-        $medicine = Medicine::find($id);
+            
+        // GET /inventory/medicines/{id}
+        public function show($id)
+        {
+            $medicine = DB::table('medicines as m')
+                ->leftJoin('stocks as s', 'm.medicine_id', '=', 's.medicine_id')
+                ->selectRaw("
+                    m.medicine_id,
+                    CONCAT('MED-', LPAD(m.medicine_id, 3, '0')) as display_id,
+                    m.medicine_name,
+                    m.category,
+                    m.brand,
+                    m.price,
+                    m.requires_prescription,
+                    COALESCE(SUM(CASE
+                        WHEN s.txn_type = 'in' THEN s.quantity
+                        WHEN s.txn_type = 'out' THEN -s.quantity
+                        WHEN s.txn_type = 'adjustment' THEN s.quantity
+                        ELSE 0
+                    END), 0) AS current_stock
+                ")
+                ->where('m.medicine_id', $id)
+                ->groupBy('m.medicine_id', 'm.medicine_name', 'm.category', 'm.brand', 'm.price', 'm.requires_prescription')
+                ->first();
 
-        if (!$medicine) {
-            return response()->json(['status' => 'error', 'message' => 'Medicine not found'], 404);
+            if (!$medicine) {
+                return response()->json(['status' => 'error', 'message' => 'Medicine not found'], 404);
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'data'   => $medicine
+            ], 200);
         }
-
-        return response()->json([
-            'status' => 'success',
-            'data'   => $medicine
-        ], 200);
-    }
 
     // DELETE /inventory/medicines/{id}
     public function destroy($id)
